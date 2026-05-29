@@ -1,0 +1,13 @@
+{
+  "build": {
+    "builder": "NIXPACKS"
+  },
+  "deploy": {
+    "numReplicas": 1,
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 10,
+    "healthcheckPath": "/health",
+    "healthcheckTimeout": 30,
+    "command": "pip install --upgrade pip && pip install -r backend/requirements.txt && uvicorn backend.main:app --host 0.0.0.0 --port $PORT"
+  }
+}
