@@ -1,6 +1,6 @@
 import axios, { AxiosError } from 'axios';
 import { Platform } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
 import { RelationshipDims } from '../store/useTwinStore';
 
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL || 
@@ -28,16 +28,16 @@ API.interceptors.request.use(async (config) => {
     config.headers.Authorization = `Bearer ${_token}`;
   } else {
     try {
-      const session = await AsyncStorage.getItem('supabase.auth.token');
-      if (session) {
-        const parsed = JSON.parse(session);
-        const token = parsed?.access_token || parsed?.currentSession?.access_token;
-        if (token) {
-          config.headers.Authorization = `Bearer ${token}`;
+      const token = await SecureStore.getItemAsync('supabase.auth.token');
+      if (token) {
+        const parsed = JSON.parse(token);
+        const accessToken = parsed?.access_token || parsed?.currentSession?.access_token;
+        if (accessToken) {
+          config.headers.Authorization = `Bearer ${accessToken}`;
         }
       }
     } catch (e) {
-      console.warn('Failed to get token from AsyncStorage');
+      console.warn('Failed to get token from SecureStore');
     }
   }
   return config;
@@ -57,7 +57,6 @@ API.interceptors.response.use(
 );
 
 // ====================== Main Chat Function ======================
-// ✅ تستقبل RelationshipDims مباشرة – لا حاجة للتحويل
 export const askTwin = async (
   message: string,
   twinName: string,
@@ -105,7 +104,6 @@ export const startTrial = async (email: string, phone: string, deviceId: string)
 };
 
 export const transcribeAudio = async (): Promise<null> => {
-  // سيتم تنفيذ تحويل الصوت إلى نص لاحقاً عند توفر نقطة نهاية مناسبة.
   return null;
 };
 

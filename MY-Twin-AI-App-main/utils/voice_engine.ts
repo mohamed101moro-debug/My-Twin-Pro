@@ -8,8 +8,19 @@ import { Animated } from 'react-native';
 import { API } from '../lib/api';
 
 let recording: Audio.Recording | null = null;
-const breath = require('../assets/breath.mp3');
 export const waveAnim = new Animated.Value(0);
+
+// تشغيل ملف التنفس (breath) – في حالة عدم وجوده، يتم تجاهله
+const playBreath = async () => {
+  try {
+    const breath = require('../assets/breath.mp3');
+    const { sound } = await Audio.Sound.createAsync(breath, { volume: 0.3 });
+    await sound.playAsync();
+    sound.unloadAsync();
+  } catch {
+    // الملف غير موجود – تجاهل
+  }
+};
 
 /**
  * بدء تسجيل الصوت مع تأثير موجي.
@@ -96,14 +107,7 @@ export const speakResponse = (
   Speech.stop();
 
   setTimeout(async () => {
-    try {
-      const { sound } = await Audio.Sound.createAsync(breath, { volume: 0.3 });
-      await sound.playAsync();
-      sound.unloadAsync();
-    } catch {
-      // لا شيء
-    }
-
+    await playBreath();
     setTimeout(() => {
       Speech.speak(text, {
         language: tts.rate < 0.8 ? 'ar' : 'en',
