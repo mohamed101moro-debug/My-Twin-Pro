@@ -3,7 +3,7 @@
     "name": "MyTwin",
     "slug": "mytwin-ai",
     "scheme": "mytwin",
-    "version": "5.3.0",
+    "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -13,14 +13,14 @@
       "backgroundColor": "#FFFFFF"
     },
     "assetBundlePatterns": [
-      "assets/**/*"
+      "**/*"
     ],
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.soulsync.mytwin",
       "infoPlist": {
-        "NSMicrophoneUsageDescription": "يحتاج التطبيق للميكروفون للمحادثات الصوتية المباشرة.",
-        "NSLocationWhenInUseUsageDescription": "يستخدم موقعك لتكييف تجربة التوأم الرقمي بناءً على الطقس والوقت من اليوم.",
+        "NSMicrophoneUsageDescription": "يحتاج التطبيق للميكروفون للمحادثات الصوتية.",
+        "NSLocationWhenInUseUsageDescription": "يستخدم الموقع لتحسين تجربة التوأم.",
         "ITSAppUsesNonExemptEncryption": false
       }
     },
@@ -34,69 +34,47 @@
         "RECORD_AUDIO",
         "VIBRATE",
         "ACCESS_FINE_LOCATION",
-        "android.permission.RECORD_AUDIO",
-        "android.permission.MODIFY_AUDIO_SETTINGS",
-        "RECORD_AUDIO",
-        "VIBRATE",
-        "ACCESS_FINE_LOCATION",
-        "android.permission.RECORD_AUDIO",
         "android.permission.MODIFY_AUDIO_SETTINGS"
       ]
     },
     "plugins": [
-    ["expo-build-properties", {
-      "android": {
-        "extraMavenRepos": [],
-        "useFrameworks": "static",
-        "enableProguardInReleaseBuilds": true
-      }
-    }],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "useFrameworks": "static",
+            "enableProguardInReleaseBuilds": true
+          }
+        }
+      ],
       [
         "onesignal-expo-plugin",
         {
-          "mode": "development"
+          "mode": "production"
         }
       ],
       "expo-router",
       [
         "expo-av",
         {
-          "microphonePermission": "يحتاج التطبيق للميكروفون للمحادثات الصوتية."
+          "microphonePermission": "السماح باستخدام الميكروفون"
         }
       ],
       [
         "expo-notifications",
         {
           "icon": "./assets/notification-icon.png",
-          "color": "#5B4AE0"
+          "color": "#ffffff"
         }
       ],
       "expo-font",
-      "expo-secure-store",
-      "expo-build-properties"
+      "expo-secure-store"
     ],
     "extra": {
       "router": {
         "origin": false
       },
       "eas": {
-        "build": {
-          "experimental": {
-            "ios": {
-              "appExtensions": [
-                {
-                  "targetName": "OneSignalNotificationServiceExtension",
-                  "bundleIdentifier": "com.soulsync.mytwin.OneSignalNotificationServiceExtension",
-                  "entitlements": {
-                    "com.apple.security.application-groups": [
-                      "group.com.soulsync.mytwin.onesignal"
-                    ]
-                  }
-                }
-              ]
-            }
-          }
-        },
         "projectId": "0ed029b8-4ba3-4902-87ec-5c3505bfc4c6"
       }
     },
@@ -105,7 +83,6 @@
     },
     "updates": {
       "url": "https://u.expo.dev/0ed029b8-4ba3-4902-87ec-5c3505bfc4c6"
-    },
-    "owner": "soulsync.ai"
+    }
   }
 }

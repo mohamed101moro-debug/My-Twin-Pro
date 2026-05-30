@@ -11,8 +11,10 @@ import CustomDrawerContent from "../components/CustomDrawerContent";
 import { ToastProvider } from "../components/Toast";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 
-function SideMenu({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+// تم نقل المكون للخارج لتحسين الأداء
+const SideMenu = ({ visible, onClose }: { visible: boolean; onClose: () => void }) => {
   const slideAnim = useRef(new Animated.Value(-280)).current;
+  
   useEffect(() => {
     Animated.timing(slideAnim, {
       toValue: visible ? 0 : -280,
@@ -20,16 +22,17 @@ function SideMenu({ visible, onClose }: { visible: boolean; onClose: () => void 
       useNativeDriver: true,
     }).start();
   }, [visible]);
+
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
-      <TouchableOpacity style={styles.overlay} onPress={onClose}>
+      <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={onClose}>
         <Animated.View style={[styles.sidebar, { transform: [{ translateX: slideAnim }] }]}>
           <CustomDrawerContent onClose={onClose} />
         </Animated.View>
       </TouchableOpacity>
     </Modal>
   );
-}
+};
 
 export default function Layout() {
   const { setAuth } = useTwinStore();
@@ -37,38 +40,45 @@ export default function Layout() {
   const [menuVisible, setMenuVisible] = useState(false);
 
   useEffect(() => {
-    // تهيئة Sentry اختياري
+    // تهيئة Sentry (اختياري)
     try {
       const Sentry = require("@sentry/react-native");
       if (Sentry && process.env.EXPO_PUBLIC_SENTRY_DSN) {
-        Sentry.init({
-          dsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
-          tracesSampleRate: 0.2,
-        });
+        Sentry.init({ dsn: process.env.EXPO_PUBLIC_SENTRY_DSN, tracesSampleRate: 0.2 });
       }
-    } catch {
-      // Sentry غير متاح
-    }
-
+    } catch { /* تجاهل الأخطاء إذا لم يكن Sentry مثبتاً */ }
     if (initialized.current) return;
     initialized.current = true;
+
+    // توجيه مبدئي لشاشة Splash
     router.replace("/splash");
 
-    setTimeout(() => {
-      supabase.auth.getSession().then(async ({ data: { session } }) => {
+    setTimeout(async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
         if (session) {
           setAuth(session.user.id);
           setToken(session.access_token);
-          const { data: profile } = await supabase
+          const { data: profile, error } = await supabase
             .from("profiles")
             .select("onboarded")
             .eq("user_id", session.user.id)
             .single();
-          router.replace(profile?.onboarded ? "/chat" : "/onboarding");
+          
+          // معالجة الخطأ أو التوجيه الصحيح
+          if (error) {
+            console.warn("Profile fetch error:", error.message);
+            router.replace("/onboarding"); 
+          } else {
+            router.replace(profile?.onboarded ? "/chat" : "/onboarding");
+          }
         } else {
           router.replace("/login");
         }
-      });
+      } catch (err) {
+        console.error("Auth check failed:", err);
+        router.replace("/login");
+      }
     }, 2500);
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -82,41 +92,28 @@ export default function Layout() {
       }
     });
 
-    return () => listener.subscription.unsubscribe();
+    return () => listener?.subscription.unsubscribe();
   }, []);
 
-  return (
-    <ErrorBoundary>
+  return (    <ErrorBoundary>
       <ToastProvider>
         <StatusBar style="dark" />
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            contentStyle: { backgroundColor: COLORS.bg },
-            animation: "fade",
-          }}
-        >
+        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: COLORS.bg }, animation: "fade" }}>
           <Stack.Screen name="index" />
           <Stack.Screen name="splash" />
           <Stack.Screen name="login" />
           <Stack.Screen name="onboarding" />
           <Stack.Screen name="terms" />
-          <Stack.Screen
-            name="chat"
-            options={{
-              headerShown: true,
-              headerTitle: "",
-              headerStyle: { backgroundColor: COLORS.header },
-              headerLeft: () => (
-                <TouchableOpacity
-                  onPress={() => setMenuVisible(true)}
-                  style={{ marginLeft: 16 }}
-                >
-                  <Text style={{ fontSize: 24 }}>☰</Text>
-                </TouchableOpacity>
-              ),
-            }}
-          />
+          <Stack.Screen name="chat" options={{
+            headerShown: true,
+            headerTitle: "",
+            headerStyle: { backgroundColor: COLORS.header },
+            headerLeft: () => (
+              <TouchableOpacity onPress={() => setMenuVisible(true)} style={{ marginLeft: 16 }}>
+                <Text style={{ fontSize: 24 }}>☰</Text>
+              </TouchableOpacity>
+            ),
+          }} />
           <Stack.Screen name="history" />
           <Stack.Screen name="profile" />
           <Stack.Screen name="memories" />
@@ -139,14 +136,5 @@ export default function Layout() {
 
 const styles = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)" },
-  sidebar: {
-    position: "absolute",
-    left: 0,
-    top: 0,
-    bottom: 0,
-    width: 280,
-    backgroundColor: COLORS.bg,
-    paddingTop: 60,
-    paddingHorizontal: 20,
-  },
+  sidebar: { position: "absolute", left: 0, top: 0, bottom: 0, width: 280, backgroundColor: COLORS.bg, paddingTop: 60, paddingHorizontal: 20 },
 });
