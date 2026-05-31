@@ -105,7 +105,7 @@ def get_mems(uid: str, q: str = "", days: int = 7, lim: int = 5) -> List[Dict]:
             .select("content, emotional_tag, created_at")
             .eq("user_id", uid)
             .gte("created_at", cut)
-            .order("created_at", desc=True)
+            .order("importance_score", desc=True)
             .limit(lim)
             .execute()
         )

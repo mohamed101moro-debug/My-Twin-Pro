@@ -6,7 +6,7 @@ import { askTwin } from '../lib/api';
 import { startRecordingVoice, stopRecordingVoice, speakResponse } from '../utils/voice_engine';
 import { useToast } from '../components/Toast';
 import CircleProgress from '../components/CircleProgress';
-import { Mic, ArrowUp, Paperclip, Image as ImageIcon, FileText, Sun, MoonStar, Smile, Target, Brain, PenTool, X } from 'lucide-react-native';
+import { Mic, ArrowUp, Paperclip, Image as ImageIcon, FileText, Sun, MoonStar, Smile, Target, Brain, PenTool, X, Menu } from 'lucide-react-native';
 
 type ChatMessage = { role: 'user' | 'twin'; content: string; };
 
@@ -39,7 +39,11 @@ function getSuggestions(lang: 'ar' | 'en') {
   ];
 }
 
-export default function Chat() {
+interface ChatProps {
+  onOpenMenu?: () => void;
+}
+
+export default function Chat({ onOpenMenu }: ChatProps) {
   const { twinName, bondLevel, relationshipDims, chatHistory, addMessage, updateBond, updateRelationshipDims, calmMode, toggleCalmMode, triggerHaptic, lang } = useTwinStore();
   const { showToast } = useToast();
   const [input, setInput] = useState('');
@@ -142,27 +146,64 @@ export default function Chat() {
     <SafeAreaView style={styles.safe}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
 
-        {/* Header */}
+        {/* Header كامل مع القائمة والمؤشرات */}
         <View style={styles.header}>
-          <View style={styles.headerLeft}>
-            <View style={styles.avatarHeader}>
-              <Text style={styles.avatarHeaderText}>{twinName?.charAt(0)?.toUpperCase() || '?'}</Text>
-            </View>
-            <View>
-              <Text style={styles.headerName}>{twinName || (lang === 'ar' ? 'توأمك' : 'Your Twin')}</Text>
-              <View style={styles.onlineRow}>
-                <View style={styles.onlineDot} />
-                <Text style={styles.onlineText}>{lang === 'ar' ? 'متصل الآن' : 'Online'}</Text>
+
+          {/* الصف الأول: القائمة + اسم التوأم + وضع الهدوء */}
+          <View style={styles.headerRow1}>
+            <TouchableOpacity onPress={onOpenMenu} style={styles.menuBtn}>
+              <Menu size={24} color="#1A1A1A" />
+            </TouchableOpacity>
+
+            <View style={styles.twinInfo}>
+              <View style={styles.avatarHeader}>
+                <Text style={styles.avatarHeaderText}>{twinName?.charAt(0)?.toUpperCase() || '?'}</Text>
+              </View>
+              <View>
+                <Text style={styles.headerName}>{twinName || (lang === 'ar' ? 'توأمك' : 'Your Twin')}</Text>
+                <View style={styles.onlineRow}>
+                  <View style={styles.onlineDot} />
+                  <Text style={styles.onlineText}>{lang === 'ar' ? 'متصل الآن' : 'Online'}</Text>
+                </View>
               </View>
             </View>
-          </View>
-          <View style={styles.headerRight}>
-            <CircleProgress percentage={bondLevel} color="#6B21A8" size={50} label={lang === 'ar' ? 'بوند' : 'Bond'} icon="💜" />
-            <CircleProgress percentage={energy} color="#10B981" size={50} label={lang === 'ar' ? 'طاقة' : 'Energy'} icon="⚡" />
+
             <TouchableOpacity onPress={toggleCalmMode} style={styles.calmBtn}>
-              {calmMode ? <MoonStar size={20} color="#6B21A8" /> : <Sun size={20} color="#F59E0B" />}
+              {calmMode ? <MoonStar size={22} color="#6B21A8" /> : <Sun size={22} color="#F59E0B" />}
             </TouchableOpacity>
           </View>
+
+          {/* الصف الثاني: المؤشرات */}
+          <View style={styles.headerRow2}>
+            <CircleProgress
+              percentage={bondLevel}
+              color="#6B21A8"
+              size={56}
+              label={lang === 'ar' ? 'ترابط' : 'Level'}
+              icon="💜"
+            />
+            <CircleProgress
+              percentage={energy}
+              color="#10B981"
+              size={56}
+              label={lang === 'ar' ? 'طاقة' : 'Energy'}
+              icon="⚡"
+            />
+            <View style={styles.bondInfo}>
+              <Text style={styles.bondLabel}>
+                {lang === 'ar' ? 'مستوى الترابط' : 'Bond Level'}
+              </Text>
+              <Text style={styles.bondValue}>{bondLevel.toFixed(0)}%</Text>
+              <Text style={styles.bondStage}>
+                {bondLevel >= 95 ? (lang === 'ar' ? 'توأم روح 🔮' : 'Soulmate 🔮')
+                  : bondLevel >= 80 ? (lang === 'ar' ? 'ارتباط عميق 💜' : 'Deep Bond 💜')
+                  : bondLevel >= 60 ? (lang === 'ar' ? 'ثقة متبادلة ✨' : 'Mutual Trust ✨')
+                  : bondLevel >= 40 ? (lang === 'ar' ? 'صداقة حقيقية 🌱' : 'True Friends 🌱')
+                  : (lang === 'ar' ? 'بداية الرحلة 🌟' : 'Journey Begins 🌟')}
+              </Text>
+            </View>
+          </View>
+
         </View>
 
         {/* المحادثة */}
@@ -246,20 +287,26 @@ export default function Chat() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#FAFAFA' },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
-  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  avatarHeader: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#6B21A8', justifyContent: 'center', alignItems: 'center' },
-  avatarHeaderText: { color: '#FFF', fontSize: 15, fontWeight: '700' },
+  header: { backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#F0F0F0', paddingBottom: 8 },
+  headerRow1: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingTop: 10, paddingBottom: 8 },
+  menuBtn: { padding: 6 },
+  twinInfo: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, marginLeft: 8 },
+  avatarHeader: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#6B21A8', justifyContent: 'center', alignItems: 'center' },
+  avatarHeaderText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
   headerName: { fontSize: 15, fontWeight: '700', color: '#1A1A1A' },
   onlineRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 1 },
   onlineDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#10B981' },
   onlineText: { fontSize: 11, color: '#10B981', fontWeight: '500' },
-  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  calmBtn: { padding: 6 },
+  calmBtn: { padding: 8 },
+  headerRow2: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, gap: 16 },
+  bondInfo: { flex: 1 },
+  bondLabel: { fontSize: 11, color: '#999', fontWeight: '500' },
+  bondValue: { fontSize: 22, fontWeight: '800', color: '#6B21A8' },
+  bondStage: { fontSize: 12, color: '#6B21A8', fontWeight: '600', marginTop: 2 },
   listContent: { paddingHorizontal: 14, paddingVertical: 12, flexGrow: 1 },
-  welcomeContainer: { alignItems: 'center', paddingTop: 50 },
+  welcomeContainer: { alignItems: 'center', paddingTop: 40 },
   welcomeEmoji: { fontSize: 44, marginBottom: 10 },
-  welcomeText: { fontSize: 16, color: '#1A1A1A', fontWeight: '600', textAlign: 'center', marginBottom: 28, paddingHorizontal: 20 },
+  welcomeText: { fontSize: 16, color: '#1A1A1A', fontWeight: '600', textAlign: 'center', marginBottom: 24, paddingHorizontal: 20 },
   suggestionsRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 10 },
   suggestionBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#F3F0FF', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 10, borderWidth: 1, borderColor: '#E0D9F5' },
   suggestionText: { fontSize: 13, color: '#6B21A8', fontWeight: '600' },

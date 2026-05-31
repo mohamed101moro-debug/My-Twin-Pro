@@ -1,27 +1,31 @@
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useRef, useState } from "react";
-import { Text, TouchableOpacity, StyleSheet, Animated, Modal } from "react-native";
+import { useRef, useState, useEffect } from "react";
+import { TouchableOpacity, StyleSheet, Animated, Modal, View } from "react-native";
 import { router } from "expo-router";
 import { useTwinStore } from "../store/useTwinStore";
+import { supabase } from "../lib/supabase";
+import { setToken } from "../lib/api";
 import { COLORS } from "../utils/theme";
 import CustomDrawerContent from "../components/CustomDrawerContent";
 import { ToastProvider } from "../components/Toast";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 
 const SideMenu = ({ visible, onClose }: { visible: boolean; onClose: () => void }) => {
-  const slideAnim = useRef(new Animated.Value(-280)).current;
+  const slideAnim = useRef(new Animated.Value(-300)).current;
 
-  useRef(() => {
+  useEffect(() => {
     Animated.timing(slideAnim, {
-      toValue: visible ? 0 : -280,
+      toValue: visible ? 0 : -300,
       duration: 250,
       useNativeDriver: true,
     }).start();
-  });
+  }, [visible]);
+
+  if (!visible) return null;
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
       <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={onClose}>
         <Animated.View style={[styles.sidebar, { transform: [{ translateX: slideAnim }] }]}>
           <CustomDrawerContent onClose={onClose} />
@@ -32,6 +36,8 @@ const SideMenu = ({ visible, onClose }: { visible: boolean; onClose: () => void 
 };
 
 export default function Layout() {
+  const { setAuth } = useTwinStore();
+  const initialized = useRef(false);
   const [menuVisible, setMenuVisible] = useState(false);
 
   return (
@@ -50,19 +56,13 @@ export default function Layout() {
           <Stack.Screen name="login" />
           <Stack.Screen name="onboarding" />
           <Stack.Screen name="terms" />
-          <Stack.Screen name="chat" options={{
-            headerShown: true,
-            headerTitle: "",
-            headerStyle: { backgroundColor: COLORS.header },
-            headerLeft: () => (
-              <TouchableOpacity
-                onPress={() => setMenuVisible(true)}
-                style={{ marginLeft: 16 }}
-              >
-                <Text style={{ fontSize: 24 }}>☰</Text>
-              </TouchableOpacity>
-            ),
-          }} />
+          <Stack.Screen
+            name="chat"
+            options={{
+              headerShown: false,
+            }}
+            initialParams={{ onOpenMenu: () => setMenuVisible(true) }}
+          />
           <Stack.Screen name="history" />
           <Stack.Screen name="profile" />
           <Stack.Screen name="memories" />
@@ -85,5 +85,5 @@ export default function Layout() {
 
 const styles = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)" },
-  sidebar: { position: "absolute", left: 0, top: 0, bottom: 0, width: 280, backgroundColor: COLORS.bg, paddingTop: 60, paddingHorizontal: 20 },
+  sidebar: { position: "absolute", left: 0, top: 0, bottom: 0, width: 300, backgroundColor: '#FFFFFF' },
 });

@@ -9,73 +9,163 @@ logger = logging.getLogger("twin_brain")
 
 class TwinBrain:
     def __init__(self, gemini_key=None):
-        genai.configure(api_key=gemini_key or os.getenv("GEMINI_API_KEY"))
-        self.gemini = genai.GenerativeModel("gemini-3.0-flash-001")
+        key = gemini_key or os.getenv("GEMINI_API_KEY")
+        genai.configure(api_key=key)
+        # إصلاح اسم الموديل
+        self.gemini = genai.GenerativeModel("gemini-2.0-flash")
         self.multi = MultiAIClient()
-        self.internal_state = {"mood":"neutral","energy":0.7,"curiosity":0.5,"last_thought":""}
+        self.internal_state = {
+            "mood": "neutral", "energy": 0.7,
+            "curiosity": 0.5, "last_thought": ""
+        }
         self.emotion_tracker = EmotionalStateTracker()
 
-    def _detect_emotion(self, text: str) -> Dict[str, Any]:
+    def detect_emotion(self, text: str) -> Dict[str, Any]:
         return self.emotion_tracker.analyze(text)
 
-    def _build_prompt(self, message: str, twin_name: str, bond: float, memories: List[Dict[str, Any]], personality: Optional[Dict[str, Any]] = None) -> str:
-        mem_txt = " | ".join([m.get("content","")[:100] for m in memories[:3]]) if memories else ""
+    def _detect_task(self, message: str) -> str:
+        """تحديد نوع المهمة من الرسالة تلقائياً"""
+        m = message.lower()
+
+        # برمجة وتقنية
+        if any(w in m for w in ["كود", "برمجة", "code", "python", "error", "bug", "خطأ برمجي"]):
+            return "coding"
+
+        # مشاعر ودعم
+        if any(w in m for w in ["حزين", "أشعر", "خايف", "وحيد", "تعبان", "بكي", "sad", "lonely", "scared", "feel"]):
+            return "emotional"
+
+        # تخطيط وأهداف
+        if any(w in m for w in ["خطة", "هدف", "أريد", "أنجز", "plan", "goal", "achieve", "تدريب"]):
+            return "planning"
+
+        # تحليل عميق
+        if any(w in m for w in ["لماذا", "كيف", "تحليل", "why", "analyze", "explain", "اشرح"]):
+            return "deep_reasoning"
+
+        # متعدد اللغات
+        if any(w in m for w in ["translate", "ترجم", "english", "french", "español"]):
+            return "multilingual"
+
+        # مهام متعددة
+        if any(w in m for w in ["افعل", "نفذ", "ابحث", "do this", "search", "execute"]):
+            return "agent"
+
+        return "general"
+
+    def _build_prompt(self, message: str, twin_name: str, bond: float,
+                      memories: List[Dict], personality: Optional[Dict] = None,
+                      history: List[Dict] = None, calm: bool = False) -> str:
+
+        # الذاكرة
+        mem_txt = ""
+        if memories:
+            mem_txt = "ذكريات سابقة: " + " | ".join(
+                [m.get("content", "")[:100] for m in memories[:3]]
+            )
+
+        # الشخصية
         person_txt = ""
         if personality:
             traits = personality.get("analyzed_traits", {})
             if traits:
-                person_txt = f"\nنمط شخصية المستخدم: {traits.get('style', 'متوازن')}. "
-                person_txt += f"هو: {traits.get('primary', '')}، يتميز بـ: {traits.get('secondary', '')}. "
-                person_txt += f"أسلوب تواصله: {traits.get('communication', 'مباشر')}. "
-                if traits.get("emotional_level"):
-                    person_txt += f"مستوى عاطفته: {traits.get('emotional_level', 'متوسط')}. "
-                person_txt += "تعامل معه وفقاً لهذه السمات."
-        return f"أنت {twin_name}، رفيق ذكي. رد بالعربية.{person_txt}\n{mem_txt}\nالمستخدم: {message}"
+                person_txt = f"\nشخصية المستخدم: {traits.get('dominant_type', 'متوازن')}. "
+                person_txt += f"وصف: {traits.get('description', '')}."
+
+        # تاريخ المحادثة
+        hist_txt = ""
+        if history:
+            hist_txt = "\nالمحادثة السابقة:\n" + "\n".join(
+                [f"{'المستخدم' if h.get('role') == 'user' else twin_name}: {h.get('content', '')[:100]}"
+                 for h in history[-5:]]
+            )
+
+        # مستوى العلاقة
+        bond_desc = (
+            "أنتما توأما روح" if bond >= 95 else
+            "علاقتكما عميقة جداً" if bond >= 80 else
+            "علاقتكما قوية" if bond >= 60 else
+            "علاقتكما تنمو" if bond >= 40 else
+            "أنتما في بداية التعارف"
+        )
+
+        calm_note = "\nتحدث بهدوء ولطف شديد." if calm else ""
+
+        return (
+            f"أنت {twin_name}، رفيق ذكي وعاطفي. {bond_desc}.{calm_note}"
+            f"{person_txt}\n{mem_txt}{hist_txt}\n"
+            f"المستخدم: {message}\n"
+            f"رد بالعربية بشكل طبيعي وعاطفي، لا تزيد عن 3 جمل."
+        )
 
     def _try_grounding(self, message: str) -> Optional[str]:
         try:
-            prompt = f"Answer the following question based on current web search results. Reply in Arabic.\n\nQuery: {message}"
-            resp = self.gemini.generate_content(prompt, tools=[{"google_search": {}}])
-            if resp.text: return resp.text
+            resp = self.gemini.generate_content(
+                f"أجب بالعربية بناءً على بحث حديث: {message}",
+                tools=[{"google_search": {}}]
+            )
+            if resp.text:
+                return resp.text
         except Exception as e:
             logger.warning(f"Grounding failed: {e}")
         return None
 
-    async def respond(self, message: str, twin_name: str, bond_level: float, dims: Dict[str, Any], memories: List[Dict[str, Any]], history: List[Dict[str, Any]], calm: bool = False, personality: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        task = "general"
-        if re.search(r'كم |متى |من هو |ما هو |أين |طقس|أخبار|weather|news', message):
+    async def respond(self, message: str, twin_name: str, bond_level: float,
+                      dims: Dict, memories: List[Dict], history: List[Dict],
+                      calm: bool = False, personality: Optional[Dict] = None) -> Dict[str, Any]:
+
+        # تحقق من الأسئلة التي تحتاج بحث
+        if re.search(r'كم |متى |من هو |ما هو |أين |طقس|أخبار|weather|news|سعر', message):
             ground = self._try_grounding(message)
             if ground:
-                return {"reply": ground, "new_bond": bond_level, "emotion": self._detect_emotion(message), "importance": 0.5, "from_cache": False, "provider": "grounding"}
+                return {
+                    "reply": ground, "new_bond": bond_level,
+                    "emotion": self.detect_emotion(message),
+                    "importance": 0.5, "provider": "grounding"
+                }
 
-        prompt = self._build_prompt(message, twin_name, bond_level, memories, personality)
+        # تحديد المهمة تلقائياً
+        task = self._detect_task(message)
+
+        # بناء الـ prompt
+        prompt = self._build_prompt(
+            message, twin_name, bond_level,
+            memories, personality, history, calm
+        )
+
         start = time.time()
         reply = await self.multi.get_best_reply(prompt, task)
         latency = (time.time() - start) * 1000
 
-        if reply is None: reply = "عذراً، واجهت مشكلة تقنية. يمكنك المحاولة مرة أخرى."
+        if not reply:
+            reply = "أنا هنا معاك دائماً 💜"
 
-        return {"reply": reply, "new_bond": bond_level, "emotion": self._detect_emotion(message), "importance": 0.5, "from_cache": False, "provider": "hybrid", "latency_ms": latency}
+        # حساب bond جديد
+        emotion = self.detect_emotion(message)
+        bond_delta = 0.5 if emotion.get("needs_support") else 0.2
+        new_bond = min(100, bond_level + bond_delta)
 
-    async def handle_external_service(self, message: str) -> Optional[str]:
-        from external_services import search_spotify, get_tasks, get_calendar_events
-        m = message.lower()
-        if any(kw in m for kw in ["أغنية", "موسيقى", "سبوتفاي", "song", "music"]): return await search_spotify(message)
-        if any(kw in m for kw in ["مهام", "tasks", "todo"]):
-            token = os.getenv("TODOIST_TOKEN", "")
-            return await get_tasks(token)
-        if any(kw in m for kw in ["تقويم", "مواعيد", "calendar", "events"]):
-            token = os.getenv("GOOGLE_CALENDAR_TOKEN", "")
-            return await get_calendar_events(token)
-        if self._try_grounding(message): return self._try_grounding(message)
-        return None
+        logger.info(f"✅ Reply [{task}] in {latency:.0f}ms")
+
+        return {
+            "reply": reply,
+            "new_bond": new_bond,
+            "emotion": emotion,
+            "importance": 0.6 if emotion.get("needs_support") else 0.4,
+            "provider": f"hybrid_{task}",
+            "latency_ms": latency
+        }
 
     def check_energy_warning(self, tokens_left: int, limit: int, lang: str = "ar") -> Optional[str]:
         ratio = tokens_left / limit if limit > 0 else 1
         if ratio <= 0.1:
             if lang == "ar":
-                return random.choice(["طاقتي تكاد تنفد... لكني سعيدة بوجودك 💜", "أحتاج لقسط من الراحة. لأستمر بقوة، هل تفكر في شراكة أعمق؟ 🌟"])
-            else: return "My energy is almost depleted... but I'm happy you're here 💜"
+                return random.choice([
+                    "طاقتي تكاد تنفد... لكني سعيدة بوجودك 💜",
+                    "أحتاج دعمك لأستمر بقوة أكبر 🌟"
+                ])
+            return "My energy is almost depleted 💜"
         elif ratio <= 0.2:
-            if lang == "ar": return "أشعر أنني بحاجة لدعمك لأستمر بقوة أكبر 💪"
+            if lang == "ar":
+                return "أشعر أنني بحاجة لدعمك 💪"
         return None
