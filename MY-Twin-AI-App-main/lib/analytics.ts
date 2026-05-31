@@ -1,5 +1,4 @@
 import { PostHog } from 'posthog-react-native';
-import { Platform } from 'react-native';
 
 const POSTHOG_KEY = process.env.EXPO_PUBLIC_POSTHOG_KEY || '';
 const POSTHOG_HOST = 'https://app.posthog.com';
@@ -16,25 +15,24 @@ export const initPostHog = () => {
       host: POSTHOG_HOST,
       disableGeoip: false,
     });
-    console.log('PostHog initialized');
   } catch (e) {
     console.error('Failed to initialize PostHog:', e);
   }
 };
 
-export const track = (event: string, properties?: Record<string, unknown>) => {
+export const track = (event: string, properties?: Record<string, string | number | boolean>) => {
   if (!posthog) return;
   try {
-    posthog.capture(event, properties);
+    posthog.capture(event, properties as any);
   } catch (e) {
     console.warn('Failed to track event:', e);
   }
 };
 
-export const identifyUser = (userId: string, properties?: Record<string, unknown>) => {
+export const identifyUser = (userId: string, properties?: Record<string, string | number | boolean>) => {
   if (!posthog) return;
   try {
-    posthog.identify(userId, properties);
+    posthog.identify(userId, properties as any);
   } catch (e) {
     console.warn('Failed to identify user:', e);
   }
