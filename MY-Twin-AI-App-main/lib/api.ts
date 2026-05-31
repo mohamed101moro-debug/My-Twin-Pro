@@ -4,9 +4,7 @@ import * as SecureStore from 'expo-secure-store';
 import { RelationshipDims } from '../store/useTwinStore';
 
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL || 
-  (Platform.OS === 'android' 
-    ? 'http://10.0.2.2:8000' 
-    : 'http://localhost:8000');
+  (Platform.OS === 'android' ? 'http://10.0.2.2:8000' : 'http://localhost:8000');
 
 export const API = axios.create({
   baseURL: BASE_URL,
@@ -16,22 +14,20 @@ export const API = axios.create({
 
 let _token = '';
 export function setToken(token: string) { _token = token; }
+export function getToken() { return _token; }
 
 API.interceptors.request.use(async (config) => {
-  if (_token) {
-    config.headers.Authorization = `Bearer ${_token}`;
-  } else {
+  let token = _token;
+  if (!token) {
     try {
-      const token = await SecureStore.getItemAsync('supabase.auth.token');
-      if (token) {
-        const parsed = JSON.parse(token);
-        const accessToken = parsed?.access_token || parsed?.currentSession?.access_token;
-        if (accessToken) config.headers.Authorization = `Bearer ${accessToken}`;
+      const stored = await SecureStore.getItemAsync('supabase.auth.token');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        token = parsed?.access_token || parsed?.currentSession?.access_token || '';
       }
-    } catch (e) {
-      console.warn('Failed to get token from SecureStore');
-    }
+    } catch (e) {}
   }
+  if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
 
@@ -50,38 +46,29 @@ export const askTwin = async (
   dims: RelationshipDims,
   calm: boolean = false
 ) => {
-  try {
-    const { data } = await API.post('/api/chat', {
-      message,
-      twin_name: twinName,
-      bond_level: bond,
-      relationship_dims: {
-        trust: dims.trust,
-        affection: dims.affection,
-        dependency: dims.dependency,
-      },
-    }, {
-      headers: { 'X-Calm-Mode': String(calm) },
-    });
-
-    // مزامنة dims الراجعة من backend مع store
-    return {
-      ...data,
-      dims_update: {
-        trust: data.relationship_dims?.trust ?? dims.trust,
-        affection: data.relationship_dims?.affection ?? dims.affection,
-        dependency: data.relationship_dims?.dependency ?? dims.dependency,
-        empathy: dims.empathy,
-        humor: dims.humor,
-        support: dims.support,
-      }
-    };
-  } catch (error) {
-    const err = error as AxiosError;
-    if (err.response?.status === 429) throw new Error("المحادثات كتير دلوقتي، استنى شوية ونكمل 🥺");
-    if (err.response?.status === 401) throw new Error("انتهت صلاحية الجلسة، سجل دخول تاني");
-    throw new Error("حصل خطأ في الاتصال... جرب تاني");
-  }
+  const { data } = await API.post('/api/chat', {
+    message,
+    twin_name: twinName,
+    bond_level: bond,
+    relationship_dims: {
+      trust: dims.trust,
+      affection: dims.affection,
+      dependency: dims.dependency,
+    },
+  }, {
+    headers: { 'X-Calm-Mode': String(calm) },
+  });
+  return {
+    ...data,
+    dims_update: {
+      trust: data.relationship_dims?.trust ?? dims.trust,
+      affection: data.relationship_dims?.affection ?? dims.affection,
+      dependency: data.relationship_dims?.dependency ?? dims.dependency,
+      empathy: dims.empathy,
+      humor: dims.humor,
+      support: dims.support,
+    }
+  };
 };
 
 export const startTrial = async (email: string, phone: string, deviceId: string) => {
@@ -92,15 +79,10 @@ export const startTrial = async (email: string, phone: string, deviceId: string)
 export const transcribeAudio = async (): Promise<null> => null;
 
 type MemoryPayload = {
-  id?: string;
-  user_id?: string;
-  content: string;
-  created_at?: string;
-  importance_score?: number;
-  memory_type?: string;
-  emotion_tag?: string;
+  id?: string; user_id?: string; content: string;
+  created_at?: string; importance_score?: number;
+  memory_type?: string; emotion_tag?: string;
 };
 
 export const saveMemory = async (memory: MemoryPayload) => API.post('/api/memory/save', memory);
-
 export default API;

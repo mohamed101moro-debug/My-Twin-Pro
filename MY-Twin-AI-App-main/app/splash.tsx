@@ -11,65 +11,38 @@ export default function SplashScreen() {
   const opacityAnim = useRef(new Animated.Value(0)).current;
   const textOpacity = useRef(new Animated.Value(0)).current;
   const subTextOpacity = useRef(new Animated.Value(0)).current;
+  const glowAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    // 1. شغّل الأنيميشن
     Animated.sequence([
       Animated.parallel([
-        Animated.spring(scaleAnim, {
-          toValue: 1,
-          tension: 10,
-          friction: 2,
-          useNativeDriver: true,
-        }),
-        Animated.timing(opacityAnim, {
-          toValue: 1,
-          duration: 800,
-          useNativeDriver: true,
-        }),
+        Animated.spring(scaleAnim, { toValue: 1, tension: 8, friction: 3, useNativeDriver: true }),
+        Animated.timing(opacityAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
       ]),
-      Animated.timing(textOpacity, {
-        toValue: 1,
-        duration: 400,
-        useNativeDriver: true,
-      }),
-      Animated.timing(subTextOpacity, {
-        toValue: 1,
-        duration: 400,
-        useNativeDriver: true,
-      }),
+      Animated.parallel([
+        Animated.timing(textOpacity, { toValue: 1, duration: 500, useNativeDriver: true }),
+        Animated.timing(glowAnim, { toValue: 1, duration: 500, useNativeDriver: true }),
+      ]),
+      Animated.timing(subTextOpacity, { toValue: 1, duration: 400, useNativeDriver: true }),
     ]).start();
 
-    // 2. بعد انتهاء الأنيميشن (2.5 ثانية) تحقق من الـ session
     const timer = setTimeout(async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
-
         if (session) {
-          // المستخدم مسجل دخول
           setAuth(session.user.id);
           setToken(session.access_token);
-
           const { data: profile } = await supabase
-            .from('profiles')
-            .select('onboarded')
-            .eq('user_id', session.user.id)
-            .single();
-
-          if (profile?.onboarded) {
-            router.replace('/chat');
-          } else {
-            router.replace('/onboarding');
-          }
+            .from('profiles').select('onboarded')
+            .eq('user_id', session.user.id).single();
+          router.replace(profile?.onboarded ? '/chat' : '/onboarding');
         } else {
-          // مفيش session → login
           router.replace('/login');
         }
       } catch (e) {
-        // في حالة أي خطأ → login
         router.replace('/login');
       }
-    }, 2500);
+    }, 2800);
 
     return () => clearTimeout(timer);
   }, []);
@@ -79,13 +52,7 @@ export default function SplashScreen() {
       <View style={styles.group}>
         <Animated.Image
           source={require('../assets/logo.png')}
-          style={[
-            styles.logo,
-            {
-              transform: [{ scale: scaleAnim }],
-              opacity: opacityAnim,
-            },
-          ]}
+          style={[styles.logo, { transform: [{ scale: scaleAnim }], opacity: opacityAnim }]}
           resizeMode="contain"
         />
         <Animated.Text style={[styles.company, { opacity: textOpacity }]}>
@@ -100,29 +67,16 @@ export default function SplashScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  group: {
-    alignItems: 'center',
-  },
-  logo: {
-    width: 200,
-    height: 200,
-    marginBottom: 16,
-  },
+  container: { flex: 1, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
+  group: { alignItems: 'center' },
+  logo: { width: 180, height: 180, marginBottom: 20 },
   company: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#B8860B',
-    letterSpacing: 1,
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#6B21A8',
+    letterSpacing: 2,
     marginBottom: 6,
+    textTransform: 'uppercase',
   },
-  copyright: {
-    fontSize: 14,
-    color: '#6B6B6B',
-  },
+  copyright: { fontSize: 13, color: '#9B7FC7', letterSpacing: 1 },
 });

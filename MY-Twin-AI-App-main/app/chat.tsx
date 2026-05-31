@@ -1,47 +1,41 @@
 import { View, Text, FlatList, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, SafeAreaView, Modal, Animated, Alert, Image as RNImage } from 'react-native';
 import { useState, useRef, useEffect } from 'react';
-import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { useTwinStore } from '../store/useTwinStore';
 import { askTwin } from '../lib/api';
-import { COLORS, FONTS } from '../utils/theme';
 import { startRecordingVoice, stopRecordingVoice, speakResponse } from '../utils/voice_engine';
 import { useToast } from '../components/Toast';
-import { Mic, ArrowUp, Paperclip, Image as ImageIcon, FileText, Sun, MoonStar, Smile, Target, Brain, PenTool, X, ChevronRight } from 'lucide-react-native';
+import CircleProgress from '../components/CircleProgress';
+import { Mic, ArrowUp, Paperclip, Image as ImageIcon, FileText, Sun, MoonStar, Smile, Target, Brain, PenTool, X } from 'lucide-react-native';
 
-type ChatMessage = {
-  role: 'user' | 'twin';
-  content: string;
-  created_at?: string;
-};
+type ChatMessage = { role: 'user' | 'twin'; content: string; };
 
-function getWelcomeMessage(lang: 'ar' | 'en'): { emoji: string; text: string } {
+function getWelcomeMessage(lang: 'ar' | 'en') {
   const hour = new Date().getHours();
   if (lang === 'ar') {
     if (hour >= 6 && hour < 12) return { emoji: '🌅', text: 'صباح الخير! كيف حالك اليوم؟' };
-    if (hour >= 12 && hour < 18) return { emoji: '🌞', text: 'مرحباً! يومي أفضل الآن' };
+    if (hour >= 12 && hour < 18) return { emoji: '🌞', text: 'مرحباً! كيف يومك؟' };
     if (hour >= 18 && hour < 24) return { emoji: '🌙', text: 'مساء الخير! كيف كان يومك؟' };
     return { emoji: '🌃', text: 'سهرة سعيدة! لنكن معاً؟' };
-  } else {
-    if (hour >= 6 && hour < 12) return { emoji: '🌅', text: 'Good morning! How are you today?' };
-    if (hour >= 12 && hour < 18) return { emoji: '🌞', text: 'Hello! My day just got better' };
-    if (hour >= 18 && hour < 24) return { emoji: '🌙', text: 'Good evening! How was your day?' };
-    return { emoji: '🌃', text: 'Happy late night! Shall we stay together?' };
   }
+  if (hour >= 6 && hour < 12) return { emoji: '🌅', text: 'Good morning! How are you today?' };
+  if (hour >= 12 && hour < 18) return { emoji: '🌞', text: 'Hello! How is your day?' };
+  if (hour >= 18 && hour < 24) return { emoji: '🌙', text: 'Good evening! How was your day?' };
+  return { emoji: '🌃', text: 'Happy late night! Shall we talk?' };
 }
 
-function getQuickSuggestions(lang: 'ar' | 'en') {
+function getSuggestions(lang: 'ar' | 'en') {
   if (lang === 'ar') return [
-    { icon: Smile, label: 'دردشة عادية', prompt: 'لنتحدث عن أي شيء يخطر ببالك' },
-    { icon: Target, label: 'مساعدة في مهمة', prompt: 'أريد مساعدتك في إنجاز مهمة' },
-    { icon: Brain, label: 'تحليل مشاعر', prompt: 'أريد أن أفهم مشاعري اليوم' },
-    { icon: PenTool, label: 'إبداع وكتابة', prompt: 'لنكتب شيئاً إبداعياً معاً' },
+    { icon: Smile, label: 'دردشة', prompt: 'لنتحدث عن أي شيء' },
+    { icon: Target, label: 'مهمة', prompt: 'أريد مساعدتك في مهمة' },
+    { icon: Brain, label: 'مشاعر', prompt: 'أريد أن أفهم مشاعري' },
+    { icon: PenTool, label: 'إبداع', prompt: 'لنكتب شيئاً معاً' },
   ];
   return [
-    { icon: Smile, label: 'Casual Chat', prompt: 'Let\'s talk about anything' },
-    { icon: Target, label: 'Task Help', prompt: 'I need help with a task' },
-    { icon: Brain, label: 'Analyze Mood', prompt: 'I want to understand my feelings' },
-    { icon: PenTool, label: 'Creative Writing', prompt: 'Let\'s write something creative' },
+    { icon: Smile, label: 'Chat', prompt: "Let's talk about anything" },
+    { icon: Target, label: 'Task', prompt: 'I need help with a task' },
+    { icon: Brain, label: 'Feelings', prompt: 'Help me understand my feelings' },
+    { icon: PenTool, label: 'Creative', prompt: "Let's write something together" },
   ];
 }
 
@@ -50,19 +44,19 @@ export default function Chat() {
   const { showToast } = useToast();
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [, setEmotion] = useState('neutral');
   const [isRecording, setIsRecording] = useState(false);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
+  const [energy] = useState(85);
   const flatListRef = useRef<FlatList<ChatMessage>>(null);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const recordWave = useRef(new Animated.Value(1)).current;
   const isRTL = lang === 'ar';
   const welcome = getWelcomeMessage(lang);
-  const suggestions = getQuickSuggestions(lang);
+  const suggestions = getSuggestions(lang);
 
   useEffect(() => {
     flatListRef.current?.scrollToEnd({ animated: true });
-    Animated.timing(fadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }).start();
+    Animated.timing(fadeAnim, { toValue: 1, duration: 300, useNativeDriver: true }).start();
   }, [chatHistory]);
 
   useEffect(() => {
@@ -71,9 +65,7 @@ export default function Chat() {
         Animated.timing(recordWave, { toValue: 1.3, duration: 300, useNativeDriver: true }),
         Animated.timing(recordWave, { toValue: 0.8, duration: 300, useNativeDriver: true }),
       ])).start();
-    } else {
-      recordWave.setValue(1);
-    }
+    } else { recordWave.setValue(1); }
   }, [isRecording]);
 
   const send = async (messageText?: string) => {
@@ -88,22 +80,11 @@ export default function Chat() {
       addMessage('twin', res.reply);
       updateBond(res.new_bond ?? bondLevel);
       if (res.dims_update) updateRelationshipDims(res.dims_update);
-      setEmotion(res?.emotion?.primary ?? 'neutral');
-      if (res?.importance > 0.7) {
-        showToast(lang === 'ar' ? 'تم حفظ ذكرى جديدة ✨' : 'New memory saved ✨', 'success');
-      }
-      if (res.tokens_left && res.tokens_left < 50) {
-        Alert.alert(
-          lang === 'ar' ? 'تنبيه' : 'Notice',
-          lang === 'ar' ? 'طاقتي على وشك النفاد! 💜' : 'Energy almost depleted! 💜'
-        );
-      }
+      if (res?.importance > 0.7) showToast(lang === 'ar' ? 'تم حفظ ذكرى ✨' : 'Memory saved ✨', 'success');
       if (res.tts) speakResponse(res.reply, res.tts);
-    } catch (error: unknown) {
-      addMessage('twin', lang === 'ar' ? 'تعذر الاتصال بالخادم.' : 'Unable to connect.');
-    } finally {
-      setLoading(false);
-    }
+    } catch {
+      addMessage('twin', lang === 'ar' ? 'تعذر الاتصال بالخادم 😔' : 'Connection failed 😔');
+    } finally { setLoading(false); }
   };
 
   const handleVoice = async () => {
@@ -113,34 +94,9 @@ export default function Chat() {
       if (text) send(text);
     } else {
       const started = await startRecordingVoice();
-      if (started) {
-        setIsRecording(true);
-        setTimeout(async () => {
-          if (isRecording) {
-            setIsRecording(false);
-            const text = await stopRecordingVoice();
-            if (text) send(text);
-          }
-        }, 10000);
-      } else {
-        Alert.alert('خطأ', 'تعذر الوصول للميكروفون.');
-      }
+      if (started) setIsRecording(true);
+      else Alert.alert(lang === 'ar' ? 'خطأ' : 'Error', lang === 'ar' ? 'تعذر الوصول للميكروفون' : 'Microphone access denied');
     }
-  };
-
-  const handleImage = async () => {
-    setShowAttachMenu(false);
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      quality: 1,
-    });
-    if (!result.canceled) addMessage('user', '[صورة]');
-  };
-
-  const handleFile = async () => {
-    setShowAttachMenu(false);
-    Alert.alert('قريباً', 'ميزة إرسال الملفات قيد التطوير.');
   };
 
   const renderMessage = ({ item, index }: { item: ChatMessage; index: number }) => {
@@ -149,7 +105,7 @@ export default function Chat() {
     return (
       <Animated.View style={[
         styles.messageRow,
-        isUser ? (isRTL ? styles.userRowRTL : styles.userRow) : (isRTL ? styles.twinRowRTL : styles.twinRow),
+        isUser ? styles.userRow : styles.twinRow,
         isLast && { opacity: fadeAnim }
       ]}>
         {!isUser && (
@@ -157,23 +113,23 @@ export default function Chat() {
             <Text style={styles.avatarMiniText}>{twinName?.charAt(0)?.toUpperCase() || '?'}</Text>
           </View>
         )}
-        <TouchableOpacity activeOpacity={0.8} style={[styles.bubble, isUser ? styles.userBubble : styles.twinBubble]}>
+        <View style={[styles.bubble, isUser ? styles.userBubble : styles.twinBubble]}>
           <Text style={isUser ? styles.userText : styles.twinText}>{item.content}</Text>
-        </TouchableOpacity>
+        </View>
       </Animated.View>
     );
   };
 
-  const ListEmptyComponent = () => (
+  const ListEmpty = () => (
     <View style={styles.welcomeContainer}>
       <Text style={styles.welcomeEmoji}>{welcome.emoji}</Text>
       <Text style={styles.welcomeText}>{welcome.text}</Text>
-      <View style={styles.suggestionsContainer}>
+      <View style={styles.suggestionsRow}>
         {suggestions.map((item, i) => {
-          const IconComponent = item.icon;
+          const Icon = item.icon;
           return (
             <TouchableOpacity key={i} style={styles.suggestionBtn} onPress={() => send(item.prompt)}>
-              <IconComponent size={20} color={COLORS.primary} style={{ marginBottom: 6 }} />
+              <Icon size={18} color="#6B21A8" />
               <Text style={styles.suggestionText}>{item.label}</Text>
             </TouchableOpacity>
           );
@@ -184,135 +140,149 @@ export default function Chat() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+
+        {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity style={styles.headerBtn} onPress={() => router.back()}>
-            <ChevronRight size={24} color={COLORS.text} style={{ transform: [{ scaleX: isRTL ? 1 : -1 }] }} />
-          </TouchableOpacity>
-          <View style={styles.headerCenter}>
-            <View style={styles.onlineDot} />
-            <Text style={styles.headerName}>{twinName || 'توأمك'}</Text>
+          <View style={styles.headerLeft}>
+            <View style={styles.avatarHeader}>
+              <Text style={styles.avatarHeaderText}>{twinName?.charAt(0)?.toUpperCase() || '?'}</Text>
+            </View>
+            <View>
+              <Text style={styles.headerName}>{twinName || (lang === 'ar' ? 'توأمك' : 'Your Twin')}</Text>
+              <View style={styles.onlineRow}>
+                <View style={styles.onlineDot} />
+                <Text style={styles.onlineText}>{lang === 'ar' ? 'متصل الآن' : 'Online'}</Text>
+              </View>
+            </View>
           </View>
-          <TouchableOpacity style={styles.headerBtn} onPress={toggleCalmMode}>
-            {calmMode ? <MoonStar size={20} color={COLORS.textSecondary} /> : <Sun size={20} color={COLORS.primary} />}
-          </TouchableOpacity>
+          <View style={styles.headerRight}>
+            <CircleProgress percentage={bondLevel} color="#6B21A8" size={50} label={lang === 'ar' ? 'بوند' : 'Bond'} icon="💜" />
+            <CircleProgress percentage={energy} color="#10B981" size={50} label={lang === 'ar' ? 'طاقة' : 'Energy'} icon="⚡" />
+            <TouchableOpacity onPress={toggleCalmMode} style={styles.calmBtn}>
+              {calmMode ? <MoonStar size={20} color="#6B21A8" /> : <Sun size={20} color="#F59E0B" />}
+            </TouchableOpacity>
+          </View>
         </View>
 
+        {/* المحادثة */}
         <FlatList
           ref={flatListRef}
           data={chatHistory}
           keyExtractor={(_, i) => i.toString()}
           renderItem={renderMessage}
-          ListEmptyComponent={ListEmptyComponent}
+          ListEmptyComponent={ListEmpty}
           contentContainerStyle={styles.listContent}
           onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
           removeClippedSubviews
-          initialNumToRender={10}
-          maxToRenderPerBatch={5}
+          initialNumToRender={15}
         />
 
+        {/* مؤشر الكتابة */}
         {loading && (
-          <View style={styles.typingContainer}>
+          <View style={styles.typingRow}>
             <View style={styles.typingBubble}>
-              <View style={styles.typingDots}>
-                <Animated.View style={[styles.typingDot, { opacity: 1 }]} />
-                <Animated.View style={[styles.typingDot, { opacity: 0.6 }]} />
-                <Animated.View style={[styles.typingDot, { opacity: 0.3 }]} />
-              </View>
-              <Text style={styles.typingText}>{lang === 'ar' ? 'التوأم يكتب...' : 'Twin is typing...'}</Text>
+              <Text style={styles.typingDots}>• • •</Text>
+              <Text style={styles.typingText}>{lang === 'ar' ? 'يكتب...' : 'typing...'}</Text>
             </View>
           </View>
         )}
 
+        {/* شريط الإدخال */}
         <View style={styles.inputBar}>
-          <TouchableOpacity onPress={handleVoice} style={styles.inputIconBtn}>
+          <TouchableOpacity onPress={handleVoice} style={styles.iconBtn}>
             <Animated.View style={{ transform: [{ scale: recordWave }] }}>
-              <Mic size={22} color={isRecording ? '#EF4444' : COLORS.textSecondary} />
+              <Mic size={22} color={isRecording ? '#EF4444' : '#999'} />
             </Animated.View>
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => setShowAttachMenu(true)} style={styles.inputIconBtn}>
-            <Paperclip size={20} color={COLORS.textSecondary} />
+          <TouchableOpacity onPress={() => setShowAttachMenu(true)} style={styles.iconBtn}>
+            <Paperclip size={20} color="#999" />
           </TouchableOpacity>
           <TextInput
             style={[styles.textInput, isRTL && { textAlign: 'right' }]}
             value={input}
             onChangeText={setInput}
-            placeholder={lang === 'ar' ? 'اكتب رسالتك...' : 'Type a message...'}
-            placeholderTextColor={COLORS.textSecondary}
+            placeholder={lang === 'ar' ? 'أنا هنا لأجلك... تكلم معي 💜' : "I'm here for you... talk to me 💜"}
+            placeholderTextColor="#C4B5D4"
             multiline
             maxLength={2000}
-            returnKeyType="send"
-            blurOnSubmit={false}
             onSubmitEditing={() => send()}
           />
-          {input.trim().length > 0
-            ? <TouchableOpacity onPress={() => send()} style={styles.sendBtn}><ArrowUp size={20} color="#FFF" /></TouchableOpacity>
-            : <View style={styles.sendBtnPlaceholder} />
-          }
+          {input.trim().length > 0 ? (
+            <TouchableOpacity onPress={() => send()} style={styles.sendBtn}>
+              <ArrowUp size={18} color="#FFF" />
+            </TouchableOpacity>
+          ) : <View style={{ width: 42 }} />}
         </View>
 
+        {/* المرفقات */}
         <Modal visible={showAttachMenu} transparent animationType="fade">
           <TouchableOpacity style={styles.modalOverlay} onPress={() => setShowAttachMenu(false)}>
             <View style={styles.attachMenu}>
-              <TouchableOpacity style={styles.attachItem} onPress={handleImage}>
-                <ImageIcon size={24} color={COLORS.primary} />
+              <TouchableOpacity style={styles.attachItem} onPress={async () => {
+                setShowAttachMenu(false);
+                const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images });
+                if (!r.canceled) addMessage('user', '[صورة]');
+              }}>
+                <ImageIcon size={26} color="#6B21A8" />
                 <Text style={styles.attachLabel}>{lang === 'ar' ? 'صورة' : 'Image'}</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.attachItem} onPress={handleFile}>
-                <FileText size={24} color={COLORS.primary} />
+              <TouchableOpacity style={styles.attachItem} onPress={() => { setShowAttachMenu(false); Alert.alert(lang === 'ar' ? 'قريباً' : 'Coming Soon', ''); }}>
+                <FileText size={26} color="#6B21A8" />
                 <Text style={styles.attachLabel}>{lang === 'ar' ? 'ملف' : 'File'}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.attachItem} onPress={() => setShowAttachMenu(false)}>
-                <X size={24} color={COLORS.textSecondary} />
+                <X size={26} color="#EF4444" />
                 <Text style={styles.attachLabel}>{lang === 'ar' ? 'إغلاق' : 'Close'}</Text>
               </TouchableOpacity>
             </View>
           </TouchableOpacity>
         </Modal>
+
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: COLORS.chatBg },
-  flex: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 10, backgroundColor: COLORS.header, borderBottomWidth: 1, borderBottomColor: COLORS.border },
-  headerBtn: { padding: 8 },
-  headerCenter: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  onlineDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#10B981' },
-  headerName: { color: COLORS.text, fontSize: FONTS.subtitle, fontWeight: '700' },
-  listContent: { paddingHorizontal: 16, paddingBottom: 16, flexGrow: 1 },
-  welcomeContainer: { alignItems: 'center', paddingTop: 60 },
-  welcomeEmoji: { fontSize: 48, marginBottom: 12 },
-  welcomeText: { fontSize: FONTS.subtitle, color: COLORS.text, fontWeight: '600', textAlign: 'center', marginBottom: 32, paddingHorizontal: 20 },
-  suggestionsContainer: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 12, paddingHorizontal: 10 },
-  suggestionBtn: { backgroundColor: COLORS.card, borderRadius: 16, padding: 16, width: '45%', alignItems: 'center', borderWidth: 1, borderColor: COLORS.border },
-  suggestionText: { fontSize: FONTS.small, color: COLORS.text, textAlign: 'center', marginTop: 4 },
-  messageRow: { flexDirection: 'row', alignItems: 'flex-end', marginBottom: 12 },
+  safe: { flex: 1, backgroundColor: '#FAFAFA' },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
+  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  avatarHeader: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#6B21A8', justifyContent: 'center', alignItems: 'center' },
+  avatarHeaderText: { color: '#FFF', fontSize: 15, fontWeight: '700' },
+  headerName: { fontSize: 15, fontWeight: '700', color: '#1A1A1A' },
+  onlineRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 1 },
+  onlineDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#10B981' },
+  onlineText: { fontSize: 11, color: '#10B981', fontWeight: '500' },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  calmBtn: { padding: 6 },
+  listContent: { paddingHorizontal: 14, paddingVertical: 12, flexGrow: 1 },
+  welcomeContainer: { alignItems: 'center', paddingTop: 50 },
+  welcomeEmoji: { fontSize: 44, marginBottom: 10 },
+  welcomeText: { fontSize: 16, color: '#1A1A1A', fontWeight: '600', textAlign: 'center', marginBottom: 28, paddingHorizontal: 20 },
+  suggestionsRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 10 },
+  suggestionBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#F3F0FF', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 10, borderWidth: 1, borderColor: '#E0D9F5' },
+  suggestionText: { fontSize: 13, color: '#6B21A8', fontWeight: '600' },
+  messageRow: { flexDirection: 'row', alignItems: 'flex-end', marginBottom: 10 },
   userRow: { justifyContent: 'flex-end' },
   twinRow: { justifyContent: 'flex-start' },
-  userRowRTL: { justifyContent: 'flex-start' },
-  twinRowRTL: { justifyContent: 'flex-end' },
-  avatarMini: { width: 30, height: 30, borderRadius: 15, backgroundColor: COLORS.primary, justifyContent: 'center', alignItems: 'center', marginRight: 8 },
-  avatarMiniText: { color: '#FFF', fontSize: 14, fontWeight: '700' },
-  bubble: { maxWidth: '80%', padding: 14, borderRadius: 18, marginBottom: 4 },
-  userBubble: { backgroundColor: '#4A90E2', alignSelf: 'flex-end', borderBottomRightRadius: 4 },
-  twinBubble: { backgroundColor: COLORS.card, alignSelf: 'flex-start', borderBottomLeftRadius: 4, borderWidth: 1, borderColor: COLORS.border },
-  userText: { color: '#FFF', fontSize: FONTS.body, lineHeight: 22 },
-  twinText: { color: COLORS.text, fontSize: FONTS.body, lineHeight: 22 },
-  typingContainer: { paddingHorizontal: 16, paddingBottom: 8 },
-  typingBubble: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.card, paddingVertical: 10, paddingHorizontal: 16, borderRadius: 18, alignSelf: 'flex-start', borderWidth: 1, borderColor: COLORS.border },
-  typingDots: { flexDirection: 'row', marginRight: 8 },
-  typingDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: COLORS.textSecondary, marginHorizontal: 2 },
-  typingText: { color: COLORS.textSecondary, fontSize: FONTS.small },
-  inputBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 8, backgroundColor: COLORS.header, borderTopWidth: 1, borderTopColor: COLORS.border, gap: 8 },
-  inputIconBtn: { padding: 8 },
-  textInput: { flex: 1, backgroundColor: COLORS.white, color: COLORS.text, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 22, fontSize: FONTS.body, maxHeight: 100, minHeight: 44, borderWidth: 1, borderColor: COLORS.border },
-  sendBtn: { backgroundColor: '#4A90E2', width: 42, height: 42, borderRadius: 21, justifyContent: 'center', alignItems: 'center' },
-  sendBtnPlaceholder: { width: 42, height: 42 },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'flex-end', alignItems: 'center' },
-  attachMenu: { flexDirection: 'row', backgroundColor: COLORS.white, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, width: '100%', justifyContent: 'space-around' },
-  attachItem: { alignItems: 'center' },
-  attachLabel: { fontSize: 12, color: COLORS.textSecondary, marginTop: 4 },
+  avatarMini: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#6B21A8', justifyContent: 'center', alignItems: 'center', marginRight: 6 },
+  avatarMiniText: { color: '#FFF', fontSize: 12, fontWeight: '700' },
+  bubble: { maxWidth: '78%', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 18 },
+  userBubble: { backgroundColor: '#6B21A8', borderBottomRightRadius: 4 },
+  twinBubble: { backgroundColor: '#FFFFFF', borderBottomLeftRadius: 4, borderWidth: 1, borderColor: '#EFEFEF' },
+  userText: { color: '#FFF', fontSize: 15, lineHeight: 22 },
+  twinText: { color: '#1A1A1A', fontSize: 15, lineHeight: 22 },
+  typingRow: { paddingHorizontal: 14, paddingBottom: 6 },
+  typingBubble: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#FFF', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 16, alignSelf: 'flex-start', borderWidth: 1, borderColor: '#EEE' },
+  typingDots: { color: '#6B21A8', fontSize: 16, letterSpacing: 2 },
+  typingText: { color: '#999', fontSize: 12 },
+  inputBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 8, backgroundColor: '#FFFFFF', borderTopWidth: 1, borderTopColor: '#F0F0F0', gap: 6 },
+  iconBtn: { padding: 8 },
+  textInput: { flex: 1, backgroundColor: '#F8F8F8', color: '#1A1A1A', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 22, fontSize: 15, maxHeight: 100, minHeight: 44, borderWidth: 1, borderColor: '#EFEFEF' },
+  sendBtn: { backgroundColor: '#6B21A8', width: 42, height: 42, borderRadius: 21, justifyContent: 'center', alignItems: 'center' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'flex-end' },
+  attachMenu: { flexDirection: 'row', backgroundColor: '#FFF', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, justifyContent: 'space-around' },
+  attachItem: { alignItems: 'center', gap: 6 },
+  attachLabel: { fontSize: 12, color: '#666' },
 });

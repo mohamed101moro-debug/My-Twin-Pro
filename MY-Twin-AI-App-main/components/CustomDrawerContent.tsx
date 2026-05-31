@@ -33,23 +33,29 @@ const MENU_ITEMS = {
 
 export default function CustomDrawerContent({ onClose }: { onClose: () => void }) {
   const { tier, twinName, bondLevel, lang } = useTwinStore();
-  
   const items = MENU_ITEMS[lang];
-  const stage = bondLevel >= 95 ? 'توأم روح' : bondLevel >= 80 ? 'ارتباط' : bondLevel >= 60 ? 'ثقة' : bondLevel >= 40 ? 'مقربين' : bondLevel >= 20 ? 'أصدقاء' : 'غرباء';
+  const stage = bondLevel >= 95 ? (lang === 'ar' ? 'توأم روح' : 'Soulmate') 
+    : bondLevel >= 80 ? (lang === 'ar' ? 'ارتباط' : 'Bonded')
+    : bondLevel >= 60 ? (lang === 'ar' ? 'ثقة' : 'Trusted')
+    : bondLevel >= 40 ? (lang === 'ar' ? 'مقربين' : 'Close')
+    : bondLevel >= 20 ? (lang === 'ar' ? 'أصدقاء' : 'Friends')
+    : (lang === 'ar' ? 'غرباء' : 'Strangers');
 
   const handleLogout = () => {
     Alert.alert(
       lang === 'ar' ? 'تسجيل الخروج' : 'Logout',
-      lang === 'ar' ? 'هل أنت متأكد من تسجيل الخروج؟' : 'Are you sure you want to logout?',
+      lang === 'ar' ? 'هل أنت متأكد؟' : 'Are you sure?',
       [
         { text: lang === 'ar' ? 'إلغاء' : 'Cancel', style: 'cancel' },
-        { text: lang === 'ar' ? 'خروج' : 'Logout', style: 'destructive', onPress: async () => { await supabase.auth.signOut(); router.replace('/login'); } },
+        { text: lang === 'ar' ? 'خروج' : 'Logout', style: 'destructive', 
+          onPress: async () => { await supabase.auth.signOut(); router.replace('/login'); }
+        },
       ]
     );
   };
 
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       {/* بطاقة التوأم */}
       <View style={styles.twinCard}>
         <View style={styles.avatar}>
@@ -58,7 +64,7 @@ export default function CustomDrawerContent({ onClose }: { onClose: () => void }
         <Text style={styles.twinName}>{twinName || 'توأمك'}</Text>
         <Text style={styles.stage}>{stage} • {bondLevel.toFixed(0)}%</Text>
         <View style={styles.energyBar}>
-          <View style={[styles.energyFill, { width: `${bondLevel}%` }]} />
+          <View style={[styles.energyFill, { width: `${Math.min(bondLevel, 100)}%` as any }]} />
         </View>
         {tier === 'free' && (
           <TouchableOpacity style={styles.upgradeBtn} onPress={() => { onClose(); router.push('/subscription'); }}>
@@ -67,9 +73,9 @@ export default function CustomDrawerContent({ onClose }: { onClose: () => void }
         )}
       </View>
 
-      {/* أقسام القائمة */}
+      {/* القائمة */}
       {items.map((item, i) => (
-        <TouchableOpacity key={i} style={styles.menuItem} onPress={() => { onClose(); router.push(item.route); }}>
+        <TouchableOpacity key={i} style={styles.menuItem} onPress={() => { onClose(); router.push(item.route as any); }}>
           <Text style={styles.menuIcon}>{item.icon}</Text>
           <Text style={styles.menuLabel}>{item.label}</Text>
         </TouchableOpacity>
@@ -89,19 +95,19 @@ export default function CustomDrawerContent({ onClose }: { onClose: () => void }
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.bg, paddingTop: 40 },
-  twinCard: { alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: COLORS.border, marginBottom: 8 },
-  avatar: { width: 70, height: 70, borderRadius: 35, backgroundColor: COLORS.primary, justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
-  avatarText: { color: COLORS.white, fontSize: 28, fontWeight: '700' },
-  twinName: { color: COLORS.text, fontSize: FONTS.subtitle, fontWeight: '700' },
-  stage: { color: COLORS.textSecondary, fontSize: FONTS.small, marginTop: 4 },
-  energyBar: { width: '80%', height: 6, backgroundColor: COLORS.border, borderRadius: 3, marginTop: 10, overflow: 'hidden' },
+  container: { flex: 1, backgroundColor: COLORS.bg },
+  twinCard: { alignItems: 'center', padding: 24, borderBottomWidth: 1, borderBottomColor: COLORS.border, marginBottom: 8 },
+  avatar: { width: 72, height: 72, borderRadius: 36, backgroundColor: COLORS.primary, justifyContent: 'center', alignItems: 'center', marginBottom: 10 },
+  avatarText: { color: '#FFF', fontSize: 28, fontWeight: '800' },
+  twinName: { color: COLORS.text, fontSize: FONTS.subtitle, fontWeight: '700', marginBottom: 4 },
+  stage: { color: COLORS.textSecondary, fontSize: FONTS.small, marginBottom: 10 },
+  energyBar: { width: '80%', height: 6, backgroundColor: COLORS.border, borderRadius: 3, overflow: 'hidden' },
   energyFill: { height: '100%', backgroundColor: COLORS.primary, borderRadius: 3 },
-  upgradeBtn: { marginTop: 12, backgroundColor: COLORS.primary, paddingHorizontal: 20, paddingVertical: 8, borderRadius: 16 },
-  upgradeText: { color: COLORS.white, fontWeight: '600', fontSize: FONTS.small },
-  menuItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 20 },
-  menuIcon: { fontSize: 20, width: 36, textAlign: 'center' },
-  menuLabel: { color: COLORS.text, fontSize: FONTS.body, marginLeft: 12 },
-  logoutItem: { borderTopWidth: 1, borderTopColor: COLORS.border, marginTop: 16, paddingTop: 20 },
+  upgradeBtn: { marginTop: 12, backgroundColor: COLORS.primary, paddingHorizontal: 20, paddingVertical: 8, borderRadius: 20 },
+  upgradeText: { color: '#FFF', fontWeight: '700', fontSize: FONTS.small },
+  menuItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 20, borderRadius: 12, marginHorizontal: 8, marginBottom: 2 },
+  menuIcon: { fontSize: 22, width: 40, textAlign: 'center' },
+  menuLabel: { color: COLORS.text, fontSize: FONTS.body, fontWeight: '500', marginLeft: 12, flex: 1 },
+  logoutItem: { borderTopWidth: 1, borderTopColor: COLORS.border, marginTop: 16 },
   version: { textAlign: 'center', color: COLORS.textSecondary, fontSize: FONTS.tiny, marginTop: 20, paddingBottom: 40 },
 });
