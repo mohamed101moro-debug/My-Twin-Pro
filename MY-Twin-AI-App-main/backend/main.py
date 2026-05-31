@@ -108,10 +108,14 @@ async def get_usage(uid):
         return 0
 
 class ChatReq(BaseModel):
+    def model_post_init(self, __context):
+        if self.relationship_dims and not self.dims:
+            self.dims = self.relationship_dims
     message: str = Field(..., min_length=1, max_length=2000)
     twin_name: str = Field("توأمك")
     bond_level: float = Field(0.0)
     dims: dict = Field(default_factory=dict)
+    relationship_dims: dict = Field(default_factory=dict)
     history: list = Field(default_factory=list)
 
 @app.get("/")
