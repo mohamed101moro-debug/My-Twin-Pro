@@ -1,7 +1,7 @@
 import axios, { AxiosError } from 'axios';
 import { Platform } from 'react-native';
-import * as SecureStore from 'expo-secure-store';
 import { RelationshipDims } from '../store/useTwinStore';
+import { supabase } from './supabase';
 
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL ||
   (Platform.OS === 'android' ? 'http://10.0.2.2:8000' : 'http://localhost:8000');
@@ -13,49 +13,30 @@ export const API = axios.create({
 });
 
 let _token = '';
-
-export function setToken(token: string) {
-  _token = token;
-  // احفظ في SecureStore كاحتياطي
-  SecureStore.setItemAsync('mytwin_access_token', token).catch(() => {});
-}
-
+export function setToken(token: string) { _token = token; }
 export function getToken() { return _token; }
 
-async function resolveToken(): Promise<string> {
+// جلب التوكن من Supabase مباشرة — الأضمن
+async function getFreshToken(): Promise<string> {
   // أولاً: الـ memory
   if (_token) return _token;
 
-  // ثانياً: SecureStore مباشرة
+  // ثانياً: Supabase session مباشرة
   try {
-    const direct = await SecureStore.getItemAsync('mytwin_access_token');
-    if (direct) { _token = direct; return direct; }
-  } catch {}
-
-  // ثالثاً: Supabase session keys
-  const supabaseKeys = [
-    `sb-${(process.env.EXPO_PUBLIC_SUPABASE_URL || '').split('//')[1]?.split('.')[0]}-auth-token`,
-    'supabase.auth.token',
-  ];
-
-  for (const key of supabaseKeys) {
-    try {
-      const raw = await SecureStore.getItemAsync(key);
-      if (!raw) continue;
-      const parsed = JSON.parse(raw);
-      const token =
-        parsed?.access_token ||
-        parsed?.currentSession?.access_token ||
-        (Array.isArray(parsed) ? parsed[0]?.access_token : null);
-      if (token) { _token = token; return token; }
-    } catch {}
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.access_token) {
+      _token = session.access_token;
+      return _token;
+    }
+  } catch (e) {
+    console.warn('getSession failed:', e);
   }
 
   return '';
 }
 
 API.interceptors.request.use(async (config) => {
-  const token = await resolveToken();
+  const token = await getFreshToken();
   if (token) {
     config.headers['Authorization'] = `Bearer ${token}`;
     config.headers['auth'] = token;
@@ -65,7 +46,21 @@ API.interceptors.request.use(async (config) => {
 
 API.interceptors.response.use(
   (r) => r,
-  (error: AxiosError) => {
+  async (error: AxiosError) => {
+    // لو 401 — جرب تجدد التوكن
+    if (error.response?.status === 401) {
+      try {
+        const { data: { session } } = await supabase.auth.refreshSession();
+        if (session?.access_token) {
+          _token = session.access_token;
+          // أعد المحاولة مرة واحدة
+          const config = error.config!;
+          config.headers['Authorization'] = `Bearer ${_token}`;
+          config.headers['auth'] = _token;
+          return API(config);
+        }
+      } catch {}
+    }
     console.error('API Error:', {
       status: error.response?.status,
       data: error.response?.data,
@@ -113,20 +108,7 @@ export const askTwin = async (
   };
 };
 
-export const startTrial = async (email: string, phone: string, deviceId: string) => {
-  const { data } = await API.post('/api/trial/start', { email, phone, device_id: deviceId });
-  return data;
-};
-
-export const transcribeAudio = async (): Promise<null> => null;
-
-type MemoryPayload = {
-  id?: string; user_id?: string; content: string;
-  created_at?: string; importance_score?: number;
-  memory_type?: string; emotion_tag?: string;
-};
-
-export const saveMemory = async (memory: MemoryPayload) =>
+export const saveMemory = async (memory: object) =>
   API.post('/api/memory/save', memory);
 
 export default API;
