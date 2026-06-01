@@ -120,3 +120,54 @@ class MultiAIClient:
 
         # احتياطي نهائي
         return self.gemini_chat(prompt)
+
+    async def get_reply_for_tier(self, prompt: str, task: str, tier: str) -> str:
+        """
+        توجيه النماذج حسب الباقة — Free يستخدم نماذج أقل تكلفة
+        """
+        from message_limits import get_tier_models
+        allowed_models = get_tier_models(tier)
+
+        # ترتيب النماذج حسب المهمة مع مراعاة الباقة
+        all_chains = {
+            "general":       ["groq", "llama4", "deepseek", "gemini"],
+            "emotional":     ["groq", "llama4", "gemma4", "gemini"],
+            "coding":        ["minimax", "deepseek", "groq", "gemini"],
+            "deep_reasoning":["deepseek", "qwen", "gptoss", "gemini"],
+            "multilingual":  ["gemma4", "llama4", "gemini"],
+            "planning":      ["llama4", "qwen", "gemini"],
+            "agent":         ["qwen", "llama4", "gemini"],
+        }
+
+        model_map = {
+            "groq": self.groq_chat,
+            "llama4": self.llama4_chat,
+            "deepseek": self.deepseek_chat,
+            "minimax": self.minimax_chat,
+            "gemma4": self.gemma4_chat,
+            "gptoss": self.gptoss_chat,
+            "qwen": self.qwen_chat,
+            "gemini": self.gemini_chat,
+        }
+
+        chain = all_chains.get(task, all_chains["general"])
+
+        # فلترة حسب الباقة
+        filtered = [m for m in chain if m in allowed_models]
+        if not filtered:
+            filtered = ["groq", "gemini"]  # احتياطي نهائي
+
+        loop = asyncio.get_running_loop()
+        for model_name in filtered:
+            fn = model_map.get(model_name)
+            if not fn:
+                continue
+            try:
+                result = await loop.run_in_executor(None, fn, prompt)
+                if result and len(result.strip()) > 5:
+                    return result.strip()
+            except Exception as e:
+                logger.warning(f"⚠️ {model_name} failed: {e}")
+                continue
+
+        return self.gemini_chat(prompt)

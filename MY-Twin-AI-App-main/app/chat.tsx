@@ -8,6 +8,7 @@ import { startRecordingVoice, stopRecordingVoice, speakResponse } from '../utils
 import { useToast } from '../components/Toast';
 import CircleProgress from '../components/CircleProgress';
 import CustomDrawerContent from '../components/CustomDrawerContent';
+import LimitReachedModal from '../components/LimitReachedModal';
 import { Mic, ArrowUp, Paperclip, Image as ImageIcon, FileText, Sun, MoonStar, Smile, Target, Brain, PenTool, X, Menu } from 'lucide-react-native';
 
 type ChatMessage = { role: 'user' | 'twin'; content: string; };
@@ -89,6 +90,7 @@ export default function Chat() {
   const [isRecording, setIsRecording] = useState(false);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
   const [menuVisible, setMenuVisible] = useState(false);
+  const [limitModal, setLimitModal] = useState<{visible: boolean; type: 'daily_limit' | 'bond_ceiling'; hours: number}>({visible: false, type: 'daily_limit', hours: 0});
   const [energy] = useState(85);
   const flatListRef = useRef<FlatList<ChatMessage>>(null);
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -136,7 +138,12 @@ export default function Chat() {
       if (res?.importance > 0.7) showToast(lang === 'ar' ? 'تم حفظ ذكرى ✨' : 'Memory saved ✨', 'success');
       if (res.tts) speakResponse(res.reply, res.tts);
     } catch {
-      addMessage('twin', lang === 'ar' ? 'تعذر الاتصال بالخادم 😔' : 'Connection failed 😔');
+      const errData = (error as any)?.response?.data;
+      if (errData?.error === 'daily_limit_reached') {
+        setLimitModal({ visible: true, type: 'daily_limit', hours: errData.hours_until_reset || 0 });
+      } else {
+        addMessage('twin', lang === 'ar' ? 'تعذر الاتصال بالخادم 😔' : 'Connection failed 😔');
+      }
     } finally { setLoading(false); }
   };
 
@@ -304,6 +311,7 @@ export default function Chat() {
           </TouchableOpacity>
         </Modal>
 
+      <LimitReachedModal visible={limitModal.visible} type={limitModal.type} hoursUntilReset={limitModal.hours} onClose={() => setLimitModal(p => ({...p, visible: false}))} />
       </KeyboardAvoidingView>
     </SafeAreaView>
   );

@@ -11,7 +11,7 @@ from slowapi.errors import RateLimitExceeded
 from supabase import create_client, Client
 from twin_brain import TwinBrain
 from rate_limiter import limiter, rate_limit_exceeded_handler
-from token_limits import check_tok, BASE_TOK
+from message_limits import check_message_limit, get_bond_ceiling, apply_bond_ceiling, get_tier_models, get_usage_summary, activate_referral_bonus
 from cache import get as cache_get, set as cache_set
 from emotional_engine import calc_energy, tts_params
 try:
@@ -131,13 +131,15 @@ async def chat(request: Request, body: ChatReq, uid=Depends(get_user), calm: str
     tier = p.get("tier","free")
     sd = p.get("signup_date") or p.get("created_at", datetime.now(timezone.utc).isoformat())
     ts = p.get("trial_start")
-    est = len(body.message.encode()) + sum(len(m.get("content","").encode()) for m in body.history[-10:]) // 4 + 150
-    ok, rem = check_tok(uid, tier, est, sd, ts)
-    if not ok:
-        used = await get_usage(uid)
-        lim = BASE_TOK.get(tier, 3000)
-        if used + est > lim: raise HTTPException(429, "token_limit")
-        rem = lim - used - est
+    # نظام الرسائل اليومي
+    allowed, remaining, reason = check_message_limit(uid, tier, sd)
+    if not allowed:
+        raise HTTPException(429, {
+            "error": "daily_limit_reached",
+            "message": "وصلت لحد رسائلك اليومي 💜",
+            "hours_until_reset": get_usage_summary(uid, tier, sd).get("hours_until_reset", 0),
+        })
+    rem = remaining
     emo_filter = None
     emo = {"needs_support": False}
     try:
@@ -193,7 +195,9 @@ async def chat(request: Request, body: ChatReq, uid=Depends(get_user), calm: str
             logger.warning(f"memory store task failed: {exc}")
     energy = calc_energy(p.get("last_active",""), p.get("daily_msgs",0), res.get("emotion",{}).get("primary","neutral"))
     voice = tts_params(res.get("emotion",{}).get("primary","neutral"), is_calm)
-    resp = {"reply": res["reply"], "new_bond": res["new_bond"], "emotion": res["emotion"], "energy": energy, "tts": voice, "tokens_left": rem, "provider": res.get("provider","gemini_flash")}
+    # تطبيق سقف الـ Bond
+    capped_bond = apply_bond_ceiling(res["new_bond"], tier, sd)
+    resp = {"reply": res["reply"], "new_bond": capped_bond, "emotion": res["emotion"], "energy": energy, "tts": voice, "tokens_left": rem, "provider": res.get("provider","gemini_flash")}
     if "dream_data" in res: resp["dream"] = res["dream_data"]
     if "coaching_data" in res: resp["coaching"] = res["coaching_data"]
     if sug: resp["suggestion"] = sug
