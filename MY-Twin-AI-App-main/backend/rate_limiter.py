@@ -1,39 +1,38 @@
 """
 MyTwin – Rate Limiter
-حدود المعدل لكل باقة، لمنع الاستخدام المفرط وحماية الخادم.
+حماية السيرفر مع مراعاة الباقة
 """
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
-# حدود المعدل لكل باقة
+def get_user_or_ip(request: Request) -> str:
+    """استخدام user_id لو موجود، وإلا IP"""
+    uid = getattr(request.state, "uid", None)
+    return uid if uid else get_remote_address(request)
+
+# حدود المعدل حسب الباقة
 TIER_RATES = {
-    "free": "10/minute",
-    "free_trial_14d": "20/minute",
-    "premium_trial": "120/minute",
-    "premium": "60/minute",
-    "pro": "200/minute",
-    "yearly": "500/minute",
+    "free":             "10/minute",
+    "free_week1":       "15/minute",
+    "plus":             "30/minute",
+    "premium":          "60/minute",
+    "pro":              "120/minute",
+    "yearly":           "200/minute",
 }
 
-# المُحدِّد العام – يستخدم عنوان IP لتحديد المستخدم
 limiter = Limiter(
-    key_func=get_remote_address,
-    default_limits=["100/minute"],
+    key_func=get_user_or_ip,
+    default_limits=["30/minute"],
 )
 
-
 async def rate_limit_exceeded_handler(request: Request, exc: Exception) -> JSONResponse:
-    """
-    معالج تجاوز حد المعدل.
-    يُرجع استجابة 429 مع رسالة عربية واضحة.
-    """
     return JSONResponse(
         status_code=429,
         content={
             "error": "rate_limit_exceeded",
-            "message": "لقد تجاوزت الحد المسموح به. حاول مجدداً بعد دقيقة.",
+            "message": "أبطئ قليلاً... أنا هنا ومش رايح 💜",
             "retry_after": 60,
         },
     )
