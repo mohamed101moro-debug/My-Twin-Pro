@@ -11,9 +11,11 @@ from slowapi.errors import RateLimitExceeded
 from supabase import create_client, Client
 from twin_brain import TwinBrain
 from rate_limiter import limiter, rate_limit_exceeded_handler
-from message_limits import check_message_limit, get_bond_ceiling, apply_bond_ceiling, get_tier_models, get_usage_summary, activate_referral_bonus
+from token_limits import check_tok, BASE_TOK
 from cache import get as cache_get, set as cache_set
 from emotional_engine import calc_energy, tts_params
+from time import time
+from monitoring import AIMonitor
 try:
     from product_recommender import extract_purchase_intent, get_recommended_product, format_product_suggestion, log_product_impression
     HAS_PRODUCT_RECOMMENDER = True
@@ -36,19 +38,27 @@ if not all([SUPABASE_URL, SUPABASE_KEY, GEMINI_KEY]):
 if not CRON_SECRET_KEY:
     logger.warning("CRON_SECRET_KEY is not configured. Cron endpoint will be disabled for security.")
 
+if not RC_SECRET:
+    logger.warning("REVENUECAT_WEBHOOK_SECRET is not configured. Webhook verification may be disabled.")
+
 def parse_allowed_origins(raw: str) -> list[str]:
     origins = []
     for origin in [o.strip() for o in raw.split(",") if o.strip()]:
-        if origin in ("*", "null"): continue
+        if origin in ("*", "null"):
+            logger.warning("Ignored insecure origin pattern in ALLOWED_ORIGINS: %s", origin)
+            continue
         if origin.startswith("http://") or origin.startswith("https://"):
             origins.append(origin)
+        else:
+            logger.warning("Skipping invalid origin in ALLOWED_ORIGINS: %s", origin)
     return origins
 
-ALLOWED_ORIGINS = ["https://mytwin.app", "http://localhost:3000", "http://localhost:8000", "http://127.0.0.1:19006", "http://10.0.0.1:8000"]
+ALLOWED_ORIGINS = ["https://mytwin.app", "http://localhost:3000", "http://localhost:8000", "http://127.0.0.1:19006", "http://10.0.0.1:8000",]
 if extra_origins := parse_allowed_origins(os.getenv("ALLOWED_ORIGINS", "")):
     ALLOWED_ORIGINS = extra_origins
 
-if not ALLOWED_ORIGINS: raise RuntimeError("ALLOWED_ORIGINS must contain at least one valid origin")
+if not ALLOWED_ORIGINS:
+    raise RuntimeError("ALLOWED_ORIGINS must contain at least one valid origin")
 
 db: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 brain = TwinBrain(GEMINI_KEY)
@@ -56,6 +66,15 @@ from consciousness_core import ConsciousnessCore
 consciousness = ConsciousnessCore(twin_name="MyTwin", gemini_key=GEMINI_KEY)
 
 app = FastAPI(title="MyTwin API", version="6.3.0")
+
+# ─── Monitoring Middleware ─────────────────────────────────────
+@app.middleware("http")
+async def monitor_requests(request: Request, call_next):
+    start = time()
+    response = await call_next(request)
+    duration = time() - start
+    logger.info(f"{request.method} {request.url.path} completed in {duration:.3f}s with status {response.status_code}")
+    return response
 
 @app.middleware("http")
 async def csrf_check(request: Request, call_next):
@@ -90,26 +109,27 @@ async def get_profile(uid):
     k = f"p:{uid}"
     if c := cache_get(k): return c
     try:
-        r = await run_async(lambda: db.table("profiles").select("*").eq("user_id", uid).single().execute())
+        r = await run_async(lambda: db.table("profiles").select("*").eq("id", uid).single().execute())
         p = r.data or {}
         if not p:
-            # إنشاء profile تلقائي
-            db.table("profiles").insert({
-                "id": uid, "tier": "free", "onboarded": False
-            }).execute()
-            p = {"tier": "free", "onboarded": False}
+            try:
+                db.table("profiles").insert({
+                    "id": uid, "tier": "free", "onboarded": False
+                }).execute()
+                p = {"tier": "free", "onboarded": False}
+            except Exception:
+                p = {"tier": "free", "onboarded": False}
         cache_set(k, p, 600)
         return p
     except Exception as exc:
         logger.error(f"get_profile failed for {uid}: {exc}")
-        # إنشاء profile طارئ
         try:
             db.table("profiles").insert({
                 "id": uid, "tier": "free", "onboarded": False
             }).execute()
             return {"tier": "free", "onboarded": False}
-        except:
-            raise HTTPException(status_code=500, detail="profile_fetch_error")
+        except Exception:
+            return {"tier": "free", "onboarded": False}
 
 async def get_usage(uid):
     t = date.today().isoformat()
@@ -121,15 +141,16 @@ async def get_usage(uid):
         return 0
 
 class ChatReq(BaseModel):
-    def model_post_init(self, __context):
-        if self.relationship_dims and not self.dims:
-            self.dims = self.relationship_dims
     message: str = Field(..., min_length=1, max_length=2000)
     twin_name: str = Field("توأمك")
     bond_level: float = Field(0.0)
     dims: dict = Field(default_factory=dict)
     relationship_dims: dict = Field(default_factory=dict)
     history: list = Field(default_factory=list)
+
+    def model_post_init(self, __context):
+        if self.relationship_dims and not self.dims:
+            self.dims = self.relationship_dims
 
 @app.get("/")
 async def root(): return {"status":"ok","version":"6.3.0"}
@@ -144,15 +165,13 @@ async def chat(request: Request, body: ChatReq, uid=Depends(get_user), calm: str
     tier = p.get("tier","free")
     sd = p.get("signup_date") or p.get("created_at", datetime.now(timezone.utc).isoformat())
     ts = p.get("trial_start")
-    # نظام الرسائل اليومي
-    allowed, remaining, reason = check_message_limit(uid, tier, sd)
-    if not allowed:
-        raise HTTPException(429, {
-            "error": "daily_limit_reached",
-            "message": "وصلت لحد رسائلك اليومي 💜",
-            "hours_until_reset": get_usage_summary(uid, tier, sd).get("hours_until_reset", 0),
-        })
-    rem = remaining
+    est = len(body.message.encode()) + sum(len(m.get("content","").encode()) for m in body.history[-10:]) // 4 + 150
+    ok, rem = check_tok(uid, tier, est, sd, ts)
+    if not ok:
+        used = await get_usage(uid)
+        lim = BASE_TOK.get(tier, 3000)
+        if used + est > lim: raise HTTPException(429, "token_limit")
+        rem = lim - used - est
     emo_filter = None
     emo = {"needs_support": False}
     try:
@@ -165,7 +184,7 @@ async def chat(request: Request, body: ChatReq, uid=Depends(get_user), calm: str
         from memory_engine import DeepMemorySystem
         mems = DeepMemorySystem().retrieve(uid, body.message, days=7, lim=5, emotion_filter=emo_filter)
     except ImportError:
-        mems = []
+        logger.debug("DeepMemorySystem unavailable, falling back to get_mems")
     except Exception as exc:
         logger.warning(f"memory retrieval failed: {exc}")
     if not mems:
@@ -181,11 +200,20 @@ async def chat(request: Request, body: ChatReq, uid=Depends(get_user), calm: str
     except Exception as exc:
         logger.debug(f"Personality lookup failed: {exc}")
     try:
-        res = await brain.respond_with_knowledge(
+        res = await brain.respond(
             message=body.message, twin_name=body.twin_name, bond_level=body.bond_level,
-            dims=body.dims, memories=mems, history=body.history[-10:],
-            uid=uid, calm=is_calm, personality=personality_data
+            dims=body.dims, memories=mems, history=body.history[-10:], calm=is_calm, personality=personality_data
         )
+        AIMonitor.log(
+            db=db,
+            uid=uid,
+            provider=res.get("provider"),
+            task=res.get("task", "general"),
+            latency=res.get("latency_ms", 0),
+            success=True,
+            tokens=est
+        )
+
     except Exception as e:
         logger.error(f"brain: {e}")
         raise HTTPException(500, "ai_error")
@@ -209,9 +237,7 @@ async def chat(request: Request, body: ChatReq, uid=Depends(get_user), calm: str
             logger.warning(f"memory store task failed: {exc}")
     energy = calc_energy(p.get("last_active",""), p.get("daily_msgs",0), res.get("emotion",{}).get("primary","neutral"))
     voice = tts_params(res.get("emotion",{}).get("primary","neutral"), is_calm)
-    # تطبيق سقف الـ Bond
-    capped_bond = apply_bond_ceiling(res["new_bond"], tier, sd)
-    resp = {"reply": res["reply"], "new_bond": capped_bond, "emotion": res["emotion"], "energy": energy, "tts": voice, "tokens_left": rem, "provider": res.get("provider","gemini_flash")}
+    resp = {"reply": res["reply"], "new_bond": res["new_bond"], "emotion": res["emotion"], "energy": energy, "tts": voice, "tokens_left": rem, "provider": res.get("provider","gemini_flash")}
     if "dream_data" in res: resp["dream"] = res["dream_data"]
     if "coaching_data" in res: resp["coaching"] = res["coaching_data"]
     if sug: resp["suggestion"] = sug
@@ -254,7 +280,9 @@ class ReminderReq(BaseModel):
 
 @app.post("/api/reminders")
 async def create_reminder(body: ReminderReq, uid=Depends(get_user)):
-    await run_async(lambda: db.table("reminders").insert({"user_id": uid, "title": body.title, "description": body.description, "remind_at": body.remind_at}).execute())
+    await run_async(lambda: db.table("reminders").insert({
+        "user_id": uid, "title": body.title, "description": body.description, "remind_at": body.remind_at
+    }).execute())
     return {"status": "ok", "message": "تم إنشاء التذكير"}
 
 @app.get("/api/reminders")
@@ -342,3 +370,123 @@ async def openrouter_chat(prompt: str):
     client = MultiAIClient()
     reply = client.openrouter_chat(prompt)
     return {"reply": reply or "Error"}
+
+class FeedbackReq(BaseModel):
+    provider: str
+    message: str
+    reply: str
+    rating: int
+    comment: str = ""
+
+@app.post("/api/feedback")
+async def submit_feedback(body: FeedbackReq, uid=Depends(get_user)):
+    await run_async(lambda: db.table("message_feedback").insert({
+        "user_id": uid,
+        "provider": body.provider,
+        "message": body.message[:500],
+        "reply": body.reply[:500],
+        "rating": body.rating,
+        "comment": body.comment[:500]
+    }).execute())
+    return {"status": "ok"}
+
+@app.get("/api/me/profile")
+async def get_my_profile(uid=Depends(get_user)):
+    # جلب الشخصية
+    pers = await run_async(lambda: db.table("personality_profiles").select("analyzed_traits").eq("user_id", uid).single().execute())
+    personality = pers.data.get("analyzed_traits") if pers.data else {}
+    
+    # جلب الذكريات
+    mems = await run_async(lambda: db.table("memories").select("content, created_at, importance_score").eq("user_id", uid).order("created_at", desc=True).limit(20).execute())
+    memories = mems.data or []
+    
+    # جلب مستوى الارتباط
+    bond = await run_async(lambda: db.table("twin_states").select("bond_level, bond_stage").eq("user_id", uid).single().execute())
+    bond_data = bond.data or {}
+    
+    # جلب الأهداف
+    goals = await run_async(lambda: db.table("goals").select("title, progress, status").eq("user_id", uid).order("created_at", desc=True).limit(10).execute())
+    goals_data = goals.data or []
+    
+    return {
+        "personality": personality,
+        "memories": memories,
+        "bond": bond_data,
+        "goals": goals_data,
+        "stored_data": {"total_memories": len(memories)}
+    }
+
+@app.get("/api/me/export")
+async def export_my_data(uid=Depends(get_user)):
+    # جلب كل البيانات
+    memories = await run_async(lambda: db.table("memories").select("*").eq("user_id", uid).order("created_at", desc=True).execute())
+    personality = await run_async(lambda: db.table("personality_profiles").select("analyzed_traits").eq("user_id", uid).single().execute())
+    reminders = await run_async(lambda: db.table("reminders").select("*").eq("user_id", uid).order("created_at", desc=True).execute())
+    goals = await run_async(lambda: db.table("goals").select("*").eq("user_id", uid).order("created_at", desc=True).execute())
+    
+    return {
+        "memories": memories.data or [],
+        "personality": personality.data.get("analyzed_traits") if personality.data else {},
+        "reminders": reminders.data or [],
+        "goals": goals.data or []
+    }
+
+@app.get("/api/sessions")
+async def get_active_sessions(uid=Depends(get_user)):
+    sessions = await run_async(lambda: db.table("active_sessions").select("device, ip, last_seen").eq("user_id", uid).order("last_seen", desc=True).execute())
+    return sessions.data or []
+
+@app.post("/api/sessions/logout-all")
+async def logout_all_devices(uid=Depends(get_user)):
+    await run_async(lambda: db.table("active_sessions").delete().eq("user_id", uid).execute())
+    return {"status": "ok"}
+
+@app.get("/api/personality/evolution")
+async def get_personality_evolution(uid=Depends(get_user)):
+    history = await run_async(lambda: db.table("personality_history").select("traits, recorded_at").eq("user_id", uid).order("recorded_at", desc=True).limit(10).execute())
+    return history.data or []
+
+class GoalReq(BaseModel):
+    goal: str
+    progress: int = 0
+    status: str = "active"
+
+@app.post("/api/goals")
+async def create_goal(body: GoalReq, uid=Depends(get_user)):
+    await run_async(lambda: db.table("twin_goals").insert({
+        "user_id": uid,
+        "goal": body.goal,
+        "progress": body.progress,
+        "status": body.status
+    }).execute())
+    return {"status": "ok"}
+
+@app.get("/api/goals")
+async def get_goals(uid=Depends(get_user)):
+    goals = await run_async(lambda: db.table("twin_goals").select("*").eq("user_id", uid).order("created_at", desc=True).execute())
+    return goals.data or []
+
+@app.get("/api/consciousness/dashboard")
+async def get_consciousness_dashboard(uid=Depends(get_user)):
+    # طاقة التوأم
+    state = await consciousness.load_state(uid)
+    energy = state.get("energy", 70)
+    mood = state.get("energy_mood", "طبيعي")
+    
+    # الأهداف
+    goals = await run_async(lambda: db.table("twin_goals").select("goal, progress, status").eq("user_id", uid).order("created_at", desc=True).limit(5).execute())
+    
+    # الذكريات المهمة
+    memories = await run_async(lambda: db.table("memories").select("content, importance_score, created_at").eq("user_id", uid).eq("importance_score", 0.8).limit(5).execute())
+    
+    # آخر الأفكار
+    thoughts = consciousness.stream_of_thought[-5:]
+    
+    return {
+        "energy": energy,
+        "mood": mood,
+        "goals": goals.data or [],
+        "important_memories": memories.data or [],
+        "recent_thoughts": thoughts,
+        "bond_level": state.get("bond_level", 0)
+    }

@@ -8,6 +8,15 @@ from emotional_engine import EmotionalStateTracker
 logger = logging.getLogger("twin_brain")
 
 class TwinBrain:
+    def _safety_check(self, reply):
+        from safety_engine import SafetyEngine, SafetyLevel
+        result = SafetyEngine.check_safety(reply)
+        if not result["safe"]:
+            return "أنا هنا لدعمك. إذا كنت تمر بصعوبات، يرجى التواصل مع متخصص: https://findahelpline.com"
+        return reply
+    def _explain(self, provider, task, memories, personality):
+        from reasoning_engine import ReasoningEngine
+        return ReasoningEngine.explain(provider, task, memories, personality)
     def __init__(self, gemini_key=None):
         key = gemini_key or os.getenv("GEMINI_API_KEY")
         genai.configure(api_key=key)
