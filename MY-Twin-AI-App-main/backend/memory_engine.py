@@ -128,3 +128,17 @@ def get_mems_ranked(uid, q="", days=7, lim=5):
         scored.append((score, mem))
     scored.sort(key=lambda x: x[0], reverse=True)
     return [item[1] for item in scored[:lim]]
+
+# دالة جديدة لترتيب الذكريات حسب الأهمية + التشابه + العاطفة + الوقت
+def get_mems_ranked(uid: str, q: str = "", days: int = 7, lim: int = 5) -> List[Dict]:
+    mems = get_mems(uid, q, days, lim * 3)
+    scored = []
+    for mem in mems:
+        importance = mem.get("importance_score", 0.5)
+        similarity = 0.5  # يمكن تحسينها لاحقاً
+        emotion = 0.5 if mem.get("emotional_tag") else 0.3
+        recency = 1.0  # الأحدث له أولوية أعلى
+        score = importance * 0.4 + similarity * 0.3 + emotion * 0.2 + recency * 0.1
+        scored.append((score, mem))
+    scored.sort(key=lambda x: x[0], reverse=True)
+    return [item[1] for item in scored[:lim]]

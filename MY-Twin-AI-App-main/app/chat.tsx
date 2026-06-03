@@ -1,6 +1,7 @@
 import { View, Text, FlatList, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, SafeAreaView, Modal, Animated, Alert, StatusBar } from 'react-native';
 import { useState, useRef, useEffect } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
 import { useTwinStore } from '../store/useTwinStore';
@@ -10,11 +11,14 @@ import { useToast } from '../components/Toast';
 import CircleProgress from '../components/CircleProgress';
 import CustomDrawerContent from '../components/CustomDrawerContent';
 import LimitReachedModal from '../components/LimitReachedModal';
-import { Mic, ArrowUp, Paperclip, Image as ImageIcon, FileText, Crown, Smile, Target, Brain, PenTool, X, Menu } from 'lucide-react-native';
+import { 
+  Mic, ArrowUp, Paperclip, Image as ImageIcon, FileText, Crown, 
+  Smile, Target, Brain, PenTool, X, Menu, Home, MessageCircle, 
+  History, User, BrainCircuit, Palette, Diamond, Settings, HelpCircle, Info, LogOut 
+} from 'lucide-react-native';
 
 type ChatMessage = { role: 'user' | 'twin'; content: string; };
 
-// أيقونة التوأم حسب الجنس
 function TwinAvatar({ gender, size = 40 }: { gender: string; size?: number }) {
   const isFemale = gender === 'female';
   const bg = isFemale ? '#E9D5FF' : '#DDD6FE';
@@ -29,7 +33,6 @@ const avs = StyleSheet.create({
   wrap: { justifyContent: 'center', alignItems: 'center', shadowColor: '#6B21A8', shadowOpacity: 0.2, shadowRadius: 6, elevation: 3 },
 });
 
-// زرار متحرك
 function AnimBtn({ onPress, style, children }: any) {
   const sc = useRef(new Animated.Value(1)).current;
   return (
@@ -77,7 +80,7 @@ function getSuggestions(lang: 'ar' | 'en') {
 
 export default function Chat() {
   const insets = useSafeAreaInsets();
-  const { twinName, twinGender, bondLevel, tier, relationshipDims, chatHistory, addMessage, updateBond, updateRelationshipDims, calmMode, triggerHaptic, lang } = useTwinStore();
+  const { twinName, twinGender, tier, bondLevel, energy, relationshipDims, chatHistory, addMessage, updateBond, updateRelationshipDims, calmMode, triggerHaptic, lang } = useTwinStore();
   const { showToast } = useToast();
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -85,7 +88,6 @@ export default function Chat() {
   const [showAttach, setShowAttach] = useState(false);
   const [menuVisible, setMenuVisible] = useState(false);
   const [limitModal, setLimitModal] = useState<{ visible: boolean; type: 'daily_limit' | 'bond_ceiling'; hours: number }>({ visible: false, type: 'daily_limit', hours: 0 });
-  const [energy] = useState(85);
   const flatRef = useRef<FlatList<ChatMessage>>(null);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const waveAnim = useRef(new Animated.Value(1)).current;
@@ -188,12 +190,35 @@ export default function Chat() {
     </View>
   );
 
+  // ✅ دالة محدثة لجلب الميزات حسب الباقة
+  const getTierFeatures = (): { icon: string; label: string; action: string }[] => {
+    const features = [];
+    if (tier === 'free') {
+      features.push({ icon: '💬', label: lang === 'ar' ? 'محادثة' : 'Chat', action: 'chat' });
+    } else if (tier === 'plus') {
+      features.push({ icon: '🎙️', label: lang === 'ar' ? 'صوت' : 'Voice', action: 'voice' });
+      features.push({ icon: '📷', label: lang === 'ar' ? 'صورة' : 'Image', action: 'image' });
+    } else if (tier === 'premium') {
+      features.push({ icon: '🎙️', label: lang === 'ar' ? 'صوت' : 'Voice', action: 'voice' });
+      features.push({ icon: '📷', label: lang === 'ar' ? 'صورة' : 'Image', action: 'image' });
+      features.push({ icon: '🎯', label: lang === 'ar' ? 'تحليل أحلام' : 'Dreams', action: 'dream' });
+      features.push({ icon: '🔮', label: lang === 'ar' ? 'تدريب' : 'Coaching', action: 'coach' });
+    } else if (tier === 'pro' || tier === 'yearly') {
+      features.push({ icon: '🎙️', label: lang === 'ar' ? 'صوت' : 'Voice', action: 'voice' });
+      features.push({ icon: '📷', label: lang === 'ar' ? 'صورة' : 'Image', action: 'image' });
+      features.push({ icon: '🎯', label: lang === 'ar' ? 'تحليل أحلام' : 'Dreams', action: 'dream' });
+      features.push({ icon: '🔮', label: lang === 'ar' ? 'تدريب' : 'Coaching', action: 'coach' });
+      features.push({ icon: '🏠', label: lang === 'ar' ? 'منزل ذكي' : 'Smart Home', action: 'smart_home' });
+      features.push({ icon: '📧', label: lang === 'ar' ? 'بريد' : 'Email', action: 'email' });
+    }
+    return features;
+  };
+
   return (
     <View style={[s.root, { paddingTop: insets.top }]}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
 
-        {/* Header — صف واحد تحت حدود الأمان مباشرة */}
         <View style={s.header}>
           <View style={s.headerLeft}>
             <AnimBtn onPress={openMenu} style={s.menuBtn}>
@@ -212,20 +237,12 @@ export default function Chat() {
           <View style={s.headerRight}>
             <CircleProgress percentage={bondLevel} color="#6B21A8" size={44} label={lang === 'ar' ? 'ترابط' : 'Level'} icon="💜" />
             <CircleProgress percentage={energy} color="#10B981" size={44} label={lang === 'ar' ? 'طاقة' : 'Energy'} icon="⚡" />
-            {/* زرار الترقية بدل الـ Calm Mode */}
-            {isFree ? (
-              <AnimBtn onPress={() => { /* router.push('/subscription') */ }} style={s.crownBtn}>
-                <Crown size={20} color="#F59E0B" />
-              </AnimBtn>
-            ) : (
-              <AnimBtn onPress={() => { /* router.push('/subscription') */ }} style={s.crownBtn}>
-                <Crown size={20} color="#6B21A8" />
-              </AnimBtn>
-            )}
+            <AnimBtn onPress={() => router.push('/subscription')} style={s.crownBtn}>
+              <Crown size={20} color={isFree ? '#F59E0B' : '#6B21A8'} />
+            </AnimBtn>
           </View>
         </View>
 
-        {/* المحادثة */}
         <FlatList
           ref={flatRef}
           data={chatHistory}
@@ -238,7 +255,6 @@ export default function Chat() {
           initialNumToRender={15}
         />
 
-        {/* مؤشر الكتابة */}
         {loading && (
           <View style={s.typingRow}>
             <TwinAvatar gender={twinGender} size={22} />
@@ -248,7 +264,6 @@ export default function Chat() {
           </View>
         )}
 
-        {/* شريط الإدخال */}
         <View style={[s.inputBar, { paddingBottom: insets.bottom + 8 }]}>
           <AnimBtn onPress={handleVoice} style={s.iconBtn}>
             <Animated.View style={{ transform: [{ scale: waveAnim }] }}>
@@ -274,7 +289,6 @@ export default function Chat() {
           }
         </View>
 
-        {/* القائمة الجانبية */}
         <Modal visible={menuVisible} transparent animationType="none" onRequestClose={closeMenu}>
           <TouchableOpacity style={s.overlay} activeOpacity={1} onPress={closeMenu}>
             <Animated.View style={[s.sidebar, { transform: [{ translateX: slideAnim }] }]}>
@@ -283,22 +297,30 @@ export default function Chat() {
           </TouchableOpacity>
         </Modal>
 
-        {/* المرفقات */}
         <Modal visible={showAttach} transparent animationType="fade">
           <TouchableOpacity style={s.modalOverlay} onPress={() => setShowAttach(false)}>
             <View style={s.attachMenu}>
-              <AnimBtn style={s.attachItem} onPress={async () => {
-                setShowAttach(false);
-                const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images });
-                if (!r.canceled) addMessage('user', '[صورة]');
-              }}>
-                <ImageIcon size={26} color="#6B21A8" />
-                <Text style={s.attachLabel}>{lang === 'ar' ? 'صورة' : 'Image'}</Text>
-              </AnimBtn>
-              <AnimBtn style={s.attachItem} onPress={() => { setShowAttach(false); Alert.alert(lang === 'ar' ? 'قريباً' : 'Soon', ''); }}>
-                <FileText size={26} color="#6B21A8" />
-                <Text style={s.attachLabel}>{lang === 'ar' ? 'ملف' : 'File'}</Text>
-              </AnimBtn>
+              {getTierFeatures().map((feat, index) => (
+                <AnimBtn key={index} style={s.attachItem} onPress={() => {
+                  setShowAttach(false);
+                  if (feat.action === 'image') {
+                    // فتح الصورة
+                  } else if (feat.action === 'voice') {
+                    handleVoice();
+                  } else if (feat.action === 'dream') {
+                    // إرسال طلب تحليل أحلام
+                  } else if (feat.action === 'coach') {
+                    // إرسال طلب تدريب
+                  } else if (feat.action === 'smart_home') {
+                    // فتح التحكم بالمنزل
+                  } else {
+                    Alert.alert(lang === 'ar' ? 'ميزة قادمة' : 'Coming soon', '');
+                  }
+                }}>
+                  <Text style={{ fontSize: 24 }}>{feat.icon}</Text>
+                  <Text style={s.attachLabel}>{feat.label}</Text>
+                </AnimBtn>
+              ))}
               <AnimBtn style={s.attachItem} onPress={() => setShowAttach(false)}>
                 <X size={26} color="#EF4444" />
                 <Text style={s.attachLabel}>{lang === 'ar' ? 'إغلاق' : 'Close'}</Text>
@@ -307,7 +329,6 @@ export default function Chat() {
           </TouchableOpacity>
         </Modal>
 
-        {/* Modal حد الرسائل */}
         <LimitReachedModal
           visible={limitModal.visible}
           type={limitModal.type}
@@ -356,7 +377,7 @@ const s = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
   sidebar: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 300, backgroundColor: '#FFFFFF' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'flex-end' },
-  attachMenu: { flexDirection: 'row', backgroundColor: '#FFF', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, justifyContent: 'space-around' },
+  attachMenu: { flexDirection: 'row', backgroundColor: '#FFF', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, justifyContent: 'space-around', flexWrap: 'wrap' },
   attachItem: { alignItems: 'center', gap: 6 },
   attachLabel: { fontSize: 12, color: '#666' },
 });

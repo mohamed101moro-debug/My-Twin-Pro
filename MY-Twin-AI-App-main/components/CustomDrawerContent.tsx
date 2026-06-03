@@ -2,36 +2,49 @@ import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert } from 'rea
 import { router } from 'expo-router';
 import { useTwinStore } from '../store/useTwinStore';
 import { supabase } from '../lib/supabase';
+import { 
+  Home, 
+  MessageCircle, 
+  History, 
+  User, 
+  BrainCircuit, 
+  Palette, 
+  Diamond, 
+  Settings, 
+  HelpCircle, 
+  Info, 
+  LogOut 
+} from 'lucide-react-native';
 
 const MENU_ITEMS = {
   ar: [
-    { icon: '🏠', label: 'الرئيسية', route: '/chat' },
-    { icon: '💬', label: 'محادثة جديدة', route: '/chat' },
-    { icon: '📚', label: 'المحادثات السابقة', route: '/history' },
-    { icon: '👤', label: 'الملف الشخصي', route: '/profile' },
-    { icon: '🧠', label: 'الذكريات', route: '/memories' },
-    { icon: '🎨', label: 'تخصيص التوأم', route: '/customize' },
-    { icon: '💎', label: 'الترقية', route: '/subscription' },
-    { icon: '⚙️', label: 'الإعدادات', route: '/settings' },
-    { icon: '❓', label: 'المساعدة', route: '/help' },
-    { icon: 'ℹ️', label: 'عن التطبيق', route: '/about' },
+    { icon: Home, label: 'الرئيسية', route: '/chat', action: 'home' },
+    { icon: MessageCircle, label: 'محادثة جديدة', route: '/chat', action: 'new' },
+    { icon: History, label: 'المحادثات السابقة', route: '/history' },
+    { icon: User, label: 'الملف الشخصي', route: '/profile' },
+    { icon: BrainCircuit, label: 'الذكريات', route: '/memories' },
+    { icon: Palette, label: 'تخصيص التوأم', route: '/customize' },
+    { icon: Diamond, label: 'الترقية', route: '/subscription' },
+    { icon: Settings, label: 'الإعدادات', route: '/settings' },
+    { icon: HelpCircle, label: 'المساعدة', route: '/help' },
+    { icon: Info, label: 'عن التطبيق', route: '/about' },
   ],
   en: [
-    { icon: '🏠', label: 'Home', route: '/chat' },
-    { icon: '💬', label: 'New Chat', route: '/chat' },
-    { icon: '📚', label: 'Chat History', route: '/history' },
-    { icon: '👤', label: 'Profile', route: '/profile' },
-    { icon: '🧠', label: 'Memories', route: '/memories' },
-    { icon: '🎨', label: 'Customize Twin', route: '/customize' },
-    { icon: '💎', label: 'Upgrade', route: '/subscription' },
-    { icon: '⚙️', label: 'Settings', route: '/settings' },
-    { icon: '❓', label: 'Help', route: '/help' },
-    { icon: 'ℹ️', label: 'About', route: '/about' },
+    { icon: Home, label: 'Home', route: '/chat', action: 'home' },
+    { icon: MessageCircle, label: 'New Chat', route: '/chat', action: 'new' },
+    { icon: History, label: 'Chat History', route: '/history' },
+    { icon: User, label: 'Profile', route: '/profile' },
+    { icon: BrainCircuit, label: 'Memories', route: '/memories' },
+    { icon: Palette, label: 'Customize Twin', route: '/customize' },
+    { icon: Diamond, label: 'Upgrade', route: '/subscription' },
+    { icon: Settings, label: 'Settings', route: '/settings' },
+    { icon: HelpCircle, label: 'Help', route: '/help' },
+    { icon: Info, label: 'About', route: '/about' },
   ],
 };
 
 export default function CustomDrawerContent({ onClose }: { onClose: () => void }) {
-  const { tier, twinName, bondLevel, lang } = useTwinStore();
+  const { tier, twinName, bondLevel, lang, clearHistory } = useTwinStore();
   const items = MENU_ITEMS[lang] || MENU_ITEMS.ar;
   const stage = bondLevel >= 95 ? (lang === 'ar' ? 'توأم روح' : 'Soulmate')
     : bondLevel >= 80 ? (lang === 'ar' ? 'ارتباط' : 'Bonded')
@@ -62,24 +75,32 @@ export default function CustomDrawerContent({ onClose }: { onClose: () => void }
         <Text style={styles.twinName}>{twinName || 'توأمك'}</Text>
         <Text style={styles.stage}>{stage} • {bondLevel.toFixed(0)}%</Text>
         <View style={styles.energyBar}>
-          <View style={[styles.energyFill, { width: `${Math.min(bondLevel, 100)}%` as any }]} />
+          <View style={[styles.energyFill, { width: `${Math.min(bondLevel, 100)}%` }]} />
         </View>
         {tier === 'free' && (
-          <TouchableOpacity style={styles.upgradeBtn} onPress={() => { onClose(); router.push('/subscription' as any); }}>
+          <TouchableOpacity style={styles.upgradeBtn} onPress={() => { onClose(); router.push('/subscription'); }}>
             <Text style={styles.upgradeText}>{lang === 'ar' ? '⭐ ترقية' : '⭐ Upgrade'}</Text>
           </TouchableOpacity>
         )}
       </View>
 
       {items.map((item, i) => (
-        <TouchableOpacity key={i} style={styles.menuItem} onPress={() => { onClose(); router.push(item.route as any); }}>
-          <Text style={styles.menuIcon}>{item.icon}</Text>
+        <TouchableOpacity key={i} style={styles.menuItem} onPress={() => {
+          onClose();
+          if (item.action === 'new') {
+            clearHistory();
+            router.push(item.route);
+          } else {
+            router.push(item.route);
+          }
+        }}>
+          <item.icon size={22} color="#4A1D6F" />
           <Text style={styles.menuLabel}>{item.label}</Text>
         </TouchableOpacity>
       ))}
 
       <TouchableOpacity style={[styles.menuItem, styles.logoutItem]} onPress={handleLogout}>
-        <Text style={styles.menuIcon}>🚪</Text>
+        <LogOut size={22} color="#EF4444" />
         <Text style={[styles.menuLabel, { color: '#EF4444' }]}>
           {lang === 'ar' ? 'تسجيل الخروج' : 'Logout'}
         </Text>
@@ -102,7 +123,6 @@ const styles = StyleSheet.create({
   upgradeBtn: { marginTop: 12, backgroundColor: '#6B21A8', paddingHorizontal: 20, paddingVertical: 8, borderRadius: 20 },
   upgradeText: { color: '#FFF', fontWeight: '700', fontSize: 13 },
   menuItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 20 },
-  menuIcon: { fontSize: 22, width: 36 },
   menuLabel: { fontSize: 16, color: '#1A1A1A', fontWeight: '500', flex: 1 },
   logoutItem: { borderTopWidth: 1, borderTopColor: '#F0F0F0', marginTop: 16 },
   version: { textAlign: 'center', color: '#CCC', fontSize: 12, marginTop: 20, paddingBottom: 40 },

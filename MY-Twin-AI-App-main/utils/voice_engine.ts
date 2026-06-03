@@ -2,7 +2,6 @@ import * as Speech from 'expo-speech';
 import { Audio } from 'expo-av';
 import { Animated } from 'react-native';
 import { API } from '../lib/api';
-import { useTwinStore } from '../store/useTwinStore';
 
 let recording: Audio.Recording | null = null;
 export const waveAnim = new Animated.Value(0);
@@ -35,8 +34,16 @@ export const startRecordingVoice = async (): Promise<boolean> => {
 
     Animated.loop(
       Animated.sequence([
-        Animated.timing(waveAnim, { toValue: 1, duration: 300, useNativeDriver: true }),
-        Animated.timing(waveAnim, { toValue: 0.3, duration: 300, useNativeDriver: true }),
+        Animated.timing(waveAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(waveAnim, {
+          toValue: 0.3,
+          duration: 300,
+          useNativeDriver: true,
+        }),
       ])
     ).start();
 
@@ -57,6 +64,7 @@ export const stopRecordingVoice = async (): Promise<string | null> => {
 
     const uri = recording.getURI();
     recording = null;
+
     if (!uri) return null;
 
     const formData = new FormData();
@@ -78,25 +86,23 @@ export const stopRecordingVoice = async (): Promise<string | null> => {
   }
 };
 
-export const speakResponse = (
-  text: string,
-  tts: { pitch: number; rate: number }
-) => {
-  // جلب اللغة من الـ store مباشرة
-  const lang = useTwinStore.getState().lang;
+// إضافة دالة لتصفية الإيموجي من النص
+export const filterEmojis = (text: string): string => {
+  return text.replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '');
+};
 
+// تحديث دالة speakResponse لاستخدام filterEmojis قبل النطق (النسخة المعدلة)
+export const speakResponse = (text: string, tts: { pitch: number; rate: number }, provider: string = 'edge') => {
+  const cleanText = filterEmojis(text);
   Speech.stop();
-
-  setTimeout(async () => {
-    await playBreath();
-    setTimeout(() => {
-      Speech.speak(text, {
-        language: lang === 'ar' ? 'ar-SA' : 'en-US',
-        pitch: tts.pitch,
-        rate: tts.rate,
-      });
-    }, 200);
-  }, 400);
+  setTimeout(() => {
+    // هنا سيتم إضافة دعم Google TTS و ElevenLabs لاحقًا
+    Speech.speak(cleanText, {
+      language: 'ar',
+      pitch: tts.pitch,
+      rate: tts.rate,
+    });
+  }, 200);
 };
 
 export const stopSpeaking = () => {

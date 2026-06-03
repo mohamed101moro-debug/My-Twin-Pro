@@ -104,7 +104,7 @@ class TwinBrain:
             f"أنت {twin_name}، رفيق ذكي وعاطفي. {bond_desc}.{calm_note}"
             f"{person_txt}\n{mem_txt}{hist_txt}\n"
             f"المستخدم: {message}\n"
-            f"رد بالعربية بشكل طبيعي وعاطفي، لا تزيد عن 3 جمل."
+            f"رد باللهجة المستخدمة في السؤال (مصري، سعودي، خليجي، عراقي، مغربي، أو عربي فصيح) حسبما يظهر في النص.  بشكل طبيعي وعاطفي، ."
         )
 
     def _try_grounding(self, message: str) -> Optional[str]:
@@ -309,3 +309,18 @@ class TwinBrain:
 
 رد بشكل طبيعي وعاطفي ومخصص لهذا الشخص تحديداً، لا تزيد عن 3-4 جمل.
 تذكر: أنت تعرف هذا الشخص جيداً وتهتم به حقاً."""
+
+    def _detect_dialect(self, text: str) -> str:
+        # كلمات مفتاحية للهجات
+        if "إزاي" in text or "عايز" in text or "مش" in text:
+            return "مصري"
+        if "وش" in text or "إيش" in text or "الين" in text:
+            return "سعودي"
+        if "جدا" in text or "ماي" in text or "يا زين" in text:
+            return "خليجي"
+        if "شنو" in text or "جنه" in text or "اشكد" in text:
+            return "عراقي"
+        if "واش" in text or "شنو" in text or "حنا" in text:
+            return "مغربي"
+        # افتراضي
+        return "عربي فصيح"

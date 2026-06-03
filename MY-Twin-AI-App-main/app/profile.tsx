@@ -1,137 +1,191 @@
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, TextInput } from 'react-native';
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useTwinStore } from '../store/useTwinStore';
-import { COLORS, FONTS } from '../utils/theme';
 import { router } from 'expo-router';
+import { User, Mail, Phone, Crown, Zap, MessageSquare, Edit, LogOut, Trash2 } from 'lucide-react-native';
 
 const TEXTS = {
   ar: {
     title: '👤 الملف الشخصي',
-    name: 'الاسم',
-    email: 'البريد الإلكتروني',
-    phone: 'رقم الهاتف',
-    tier: 'الباقة الحالية',
-    usage: 'الاستخدام',
-    messagesLeft: 'الرسائل المتبقية اليوم',
-    totalMessages: 'إجمالي المحادثات',
-    avgTime: 'متوسط وقت المحادثة',
-    activeDay: 'أكثر الأيام نشاطاً',
-    bondLevel: 'مستوى الارتباط',
-    bondTip: 'تحدث مع توأمك يومياً لزيادة الارتباط',
-    editProfile: 'تعديل الملف',
-    upgrade: 'ترقية',
-    logout: 'تسجيل الخروج',
-    deleteAccount: 'حذف الحساب',
+    name: 'الاسم', email: 'البريد الإلكتروني', phone: 'رقم الهاتف',
+    tier: 'الباقة الحالية', messagesLeft: 'الرسائل المتبقية اليوم',
+    totalMessages: 'إجمالي المحادثات', bondTip: 'تحدث مع توأمك يومياً لزيادة الارتباط',
+    editProfile: 'تعديل', upgrade: 'ترقية', logout: 'تسجيل الخروج',
+    deleteAccount: 'حذف الحساب', save: 'حفظ', cancel: 'إلغاء',
+    contactInfo: 'معلومات الاتصال', usageInfo: 'الاستخدام',
   },
   en: {
     title: '👤 Profile',
-    name: 'Name',
-    email: 'Email',
-    phone: 'Phone',
-    tier: 'Current Plan',
-    usage: 'Usage',
-    messagesLeft: 'Messages left today',
-    totalMessages: 'Total conversations',
-    avgTime: 'Average chat time',
-    activeDay: 'Most active day',
-    bondLevel: 'Bond Level',
-    bondTip: 'Chat daily with your Twin to grow your bond',
-    editProfile: 'Edit Profile',
-    upgrade: 'Upgrade',
-    logout: 'Logout',
-    deleteAccount: 'Delete Account',
+    name: 'Name', email: 'Email', phone: 'Phone',
+    tier: 'Current Plan', messagesLeft: 'Messages left today',
+    totalMessages: 'Total conversations', bondTip: 'Chat daily with your Twin to grow your bond',
+    editProfile: 'Edit', upgrade: 'Upgrade', logout: 'Logout',
+    deleteAccount: 'Delete Account', save: 'Save', cancel: 'Cancel',
+    contactInfo: 'Contact Info', usageInfo: 'Usage',
   },
 };
 
 export default function Profile() {
-  
-  const [profile, setProfile] = useState<Record<string, string | number | undefined>>({});
-  const [usage, setUsage] = useState({ messages: 0, tokens: 0 });
-  const { userId, tier, twinName, bondLevel, lang } = useTwinStore();
+  const { userId, tier, twinName, bondLevel, lang, setTwinName } = useTwinStore();
+  const [profile, setProfile] = useState<Record<string, any>>({});
+  const [usage, setUsage] = useState({ messages: 0 });
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
   const t = TEXTS[lang] || TEXTS['ar'];
-  const stage = bondLevel >= 95 ? 'توأم روح' : bondLevel >= 80 ? 'ارتباط' : bondLevel >= 60 ? 'ثقة' : bondLevel >= 40 ? 'مقربين' : bondLevel >= 20 ? 'أصدقاء' : 'غرباء';
+
+  const stage = bondLevel >= 95
+    ? (lang === 'ar' ? 'توأم روح' : 'Soulmate')
+    : bondLevel >= 80 ? (lang === 'ar' ? 'ارتباط' : 'Bonded')
+    : bondLevel >= 60 ? (lang === 'ar' ? 'ثقة' : 'Trusted')
+    : bondLevel >= 40 ? (lang === 'ar' ? 'مقربين' : 'Close')
+    : bondLevel >= 20 ? (lang === 'ar' ? 'أصدقاء' : 'Friends')
+    : (lang === 'ar' ? 'غرباء' : 'Strangers');
 
   useEffect(() => {
     if (!userId) return;
-    // جلب الملف الشخصي
-    supabase.from('profiles').select('*').eq('user_id', userId).single().then(({ data }) => setProfile(data || {}));
-    // جلب الاستخدام اليومي
+    // إصلاح: استخدام id بدل user_id
+    supabase.from('profiles').select('*').eq('id', userId).single()
+      .then(({ data }) => {
+        setProfile(data || {});
+        setName(data?.full_name || '');
+        setPhone(data?.phone || '');
+      });
     const today = new Date().toISOString().split('T')[0];
-    supabase.from('daily_usage').select('*').eq('user_id', userId).eq('date', today).single().then(({ data }) => setUsage(data || {}));
+    supabase.from('daily_usage').select('*').eq('user_id', userId).eq('date', today).single()
+      .then(({ data }) => setUsage(data || { messages: 0 }));
   }, [userId]);
+
+  const handleSave = async () => {
+    if (!userId) return;
+    await supabase.from('profiles').update({ full_name: name, phone }).eq('id', userId);
+    setProfile(p => ({ ...p, full_name: name, phone }));
+    if (name) setTwinName(name);
+    setEditing(false);
+    Alert.alert('✅', lang === 'ar' ? 'تم حفظ التغييرات' : 'Changes saved');
+  };
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
     router.replace('/login');
   };
 
-  const handleDeleteAccount = () => {
+  const handleDelete = () => {
     Alert.alert(
-      lang === 'ar' ? 'حذف الحساب' : 'Delete Account',
-      lang === 'ar' ? 'هل أنت متأكد؟ هذا الإجراء لا يمكن التراجع عنه.' : 'Are you sure? This cannot be undone.',
+      t.deleteAccount,
+      lang === 'ar' ? 'هذا الإجراء لا يمكن التراجع عنه.' : 'This cannot be undone.',
       [
-        { text: lang === 'ar' ? 'إلغاء' : 'Cancel', style: 'cancel' },
-        { text: lang === 'ar' ? 'حذف' : 'Delete', style: 'destructive', onPress: async () => { await supabase.rpc('delete_user'); router.replace('/login'); } },
+        { text: t.cancel, style: 'cancel' },
+        { text: t.deleteAccount, style: 'destructive', onPress: async () => {
+          await supabase.rpc('delete_user');
+          router.replace('/login');
+        }},
       ]
     );
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }}>
-      <Text style={styles.title}>{t.title}</Text>
+    <ScrollView style={s.container} contentContainerStyle={{ paddingBottom: 40 }}>
+      <Text style={s.title}>{t.title}</Text>
 
-      {/* بطاقة المعلومات الأساسية */}
-      <View style={styles.card}>
-        <View style={styles.avatar}><Text style={styles.avatarText}>{twinName?.charAt(0)?.toUpperCase() || '?'}</Text></View>
-        <Text style={styles.twinName}>{twinName}</Text>
-        <Text style={styles.stage}>{stage} • {bondLevel.toFixed(0)}%</Text>
-        <View style={styles.bondBar}><View style={[styles.bondFill, { width: `${Math.min(bondLevel, 100)}%` as any }]} /></View>
-        <Text style={styles.bondTip}>{t.bondTip}</Text>
+      {/* بطاقة التوأم */}
+      <View style={s.card}>
+        <View style={s.avatar}>
+          <Text style={s.avatarText}>{twinName?.charAt(0)?.toUpperCase() || '?'}</Text>
+        </View>
+        <Text style={s.twinName}>{twinName}</Text>
+        <Text style={s.stage}>{stage} • {bondLevel.toFixed(0)}%</Text>
+        <View style={s.bondBar}>
+          <View style={[s.bondFill, { width: `${Math.min(bondLevel, 100)}%` as any }]} />
+        </View>
+        <Text style={s.bondTip}>{t.bondTip}</Text>
       </View>
 
       {/* معلومات الاتصال */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>معلومات الاتصال</Text>
-        <View style={styles.row}><Text style={styles.label}>{t.name}</Text><Text style={styles.value}>{profile.full_name || '—'}</Text></View>
-        <View style={styles.row}><Text style={styles.label}>{t.email}</Text><Text style={styles.value}>{profile.email || '—'}</Text></View>
-        <View style={styles.row}><Text style={styles.label}>{t.phone}</Text><Text style={styles.value}>{profile.phone || '—'}</Text></View>
+      <View style={s.section}>
+        <Text style={s.sectionTitle}>{t.contactInfo}</Text>
+        {editing ? (
+          <>
+            <View style={s.row}>
+              <User size={16} color="#6B21A8" />
+              <TextInput style={s.input} placeholder={t.name} value={name} onChangeText={setName} />
+            </View>
+            <View style={s.row}>
+              <Phone size={16} color="#6B21A8" />
+              <TextInput style={s.input} placeholder={t.phone} value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
+            </View>
+            <View style={s.btnRow}>
+              <TouchableOpacity style={[s.smallBtn, { backgroundColor: '#6B21A8' }]} onPress={handleSave}>
+                <Text style={s.smallBtnText}>{t.save}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[s.smallBtn, { backgroundColor: '#F0F0F0' }]} onPress={() => setEditing(false)}>
+                <Text style={[s.smallBtnText, { color: '#666' }]}>{t.cancel}</Text>
+              </TouchableOpacity>
+            </View>
+          </>
+        ) : (
+          <>
+            <View style={s.row}><User size={16} color="#6B21A8" /><Text style={s.value}>{profile.full_name || '—'}</Text></View>
+            <View style={s.row}><Mail size={16} color="#6B21A8" /><Text style={s.value}>{profile.email || '—'}</Text></View>
+            <View style={s.row}><Phone size={16} color="#6B21A8" /><Text style={s.value}>{profile.phone || '—'}</Text></View>
+            <TouchableOpacity style={s.editBtn} onPress={() => setEditing(true)}>
+              <Edit size={14} color="#FFF" />
+              <Text style={s.editBtnText}>{t.editProfile}</Text>
+            </TouchableOpacity>
+          </>
+        )}
       </View>
 
-      {/* الباقة والاستخدام */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{t.tier}</Text>
-        <View style={styles.row}><Text style={styles.label}>{t.tier}</Text><Text style={[styles.value, { color: COLORS.primary, fontWeight: '700' }]}>{tier}</Text></View>
-        <View style={styles.row}><Text style={styles.label}>{t.messagesLeft}</Text><Text style={styles.value}>{usage.messages || 0}</Text></View>
-        <View style={styles.row}><Text style={styles.label}>{t.totalMessages}</Text><Text style={styles.value}>{profile.total_messages || 0}</Text></View>
+      {/* الاستخدام */}
+      <View style={s.section}>
+        <Text style={s.sectionTitle}>{t.usageInfo}</Text>
+        <View style={s.row}><Crown size={16} color="#6B21A8" /><Text style={s.label}>{t.tier}</Text><Text style={s.value}>{tier}</Text></View>
+        <View style={s.row}><Zap size={16} color="#10B981" /><Text style={s.label}>{t.messagesLeft}</Text><Text style={s.value}>{usage.messages || 0}</Text></View>
+        <View style={s.row}><MessageSquare size={16} color="#6B21A8" /><Text style={s.label}>{t.totalMessages}</Text><Text style={s.value}>{profile.total_messages || 0}</Text></View>
       </View>
 
-      {/* أزرار الإجراءات */}
-      <TouchableOpacity style={styles.button} onPress={() => router.push('/subscription')}><Text style={styles.buttonText}>{t.upgrade}</Text></TouchableOpacity>
-      <TouchableOpacity style={[styles.button, styles.logoutBtn]} onPress={handleLogout}><Text style={[styles.buttonText, { color: COLORS.primary }]}>{t.logout}</Text></TouchableOpacity>
-      <TouchableOpacity style={[styles.button, styles.dangerBtn]} onPress={handleDeleteAccount}><Text style={[styles.buttonText, { color: '#EF4444' }]}>{t.deleteAccount}</Text></TouchableOpacity>
+      {/* أزرار */}
+      <TouchableOpacity style={s.btn} onPress={() => router.push('/subscription' as any)}>
+        <Crown size={16} color="#FFF" />
+        <Text style={s.btnText}>{t.upgrade}</Text>
+      </TouchableOpacity>
+      <TouchableOpacity style={[s.btn, s.outlineBtn]} onPress={handleLogout}>
+        <LogOut size={16} color="#6B21A8" />
+        <Text style={[s.btnText, { color: '#6B21A8' }]}>{t.logout}</Text>
+      </TouchableOpacity>
+      <TouchableOpacity style={[s.btn, s.dangerBtn]} onPress={handleDelete}>
+        <Trash2 size={16} color="#EF4444" />
+        <Text style={[s.btnText, { color: '#EF4444' }]}>{t.deleteAccount}</Text>
+      </TouchableOpacity>
     </ScrollView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.bg, padding: 16 },
-  title: { fontSize: FONTS.title, fontWeight: '800', color: COLORS.text, marginBottom: 20 },
-  card: { alignItems: 'center', backgroundColor: COLORS.card, padding: 20, borderRadius: 16, marginBottom: 20, borderWidth: 1, borderColor: COLORS.border },
-  avatar: { width: 80, height: 80, borderRadius: 40, backgroundColor: COLORS.primary, justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
-  avatarText: { color: COLORS.white, fontSize: 32, fontWeight: '700' },
-  twinName: { color: COLORS.text, fontSize: FONTS.subtitle, fontWeight: '700' },
-  stage: { color: COLORS.textSecondary, fontSize: FONTS.small, marginTop: 4 },
-  bondBar: { width: '80%', height: 8, backgroundColor: COLORS.border, borderRadius: 4, marginTop: 12, overflow: 'hidden' },
-  bondFill: { height: '100%', backgroundColor: COLORS.primary, borderRadius: 4 },
-  bondTip: { color: COLORS.textSecondary, fontSize: FONTS.tiny, marginTop: 8, textAlign: 'center' },
-  section: { backgroundColor: COLORS.card, padding: 16, borderRadius: 12, marginBottom: 16, borderWidth: 1, borderColor: COLORS.border },
-  sectionTitle: { color: COLORS.text, fontSize: FONTS.subtitle, fontWeight: '700', marginBottom: 12 },
-  row: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: COLORS.border },
-  label: { color: COLORS.textSecondary, fontSize: FONTS.body },
-  value: { color: COLORS.text, fontSize: FONTS.body },
-  button: { backgroundColor: COLORS.primary, padding: 14, borderRadius: 12, alignItems: 'center', marginTop: 12 },
-  buttonText: { color: COLORS.white, fontWeight: '700', fontSize: FONTS.body },
-  logoutBtn: { backgroundColor: COLORS.card, borderWidth: 1.5, borderColor: COLORS.primary },
-  dangerBtn: { backgroundColor: COLORS.card, borderWidth: 1.5, borderColor: '#EF4444' },
+const s = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#F8F6F2', padding: 16 },
+  title: { fontSize: 24, fontWeight: '800', color: '#1A1A1A', marginBottom: 20, marginTop: 10 },
+  card: { alignItems: 'center', backgroundColor: '#FFFFFF', padding: 20, borderRadius: 16, marginBottom: 16, borderWidth: 1, borderColor: '#E0D9F5' },
+  avatar: { width: 76, height: 76, borderRadius: 38, backgroundColor: '#6B21A8', justifyContent: 'center', alignItems: 'center', marginBottom: 10 },
+  avatarText: { color: '#FFF', fontSize: 30, fontWeight: '700' },
+  twinName: { color: '#1A1A1A', fontSize: 18, fontWeight: '700' },
+  stage: { color: '#888', fontSize: 13, marginTop: 4 },
+  bondBar: { width: '80%', height: 8, backgroundColor: '#F0F0F0', borderRadius: 4, marginTop: 10, overflow: 'hidden' },
+  bondFill: { height: '100%', backgroundColor: '#6B21A8', borderRadius: 4 },
+  bondTip: { color: '#AAA', fontSize: 11, marginTop: 8, textAlign: 'center' },
+  section: { backgroundColor: '#FFFFFF', padding: 16, borderRadius: 12, marginBottom: 14, borderWidth: 1, borderColor: '#F0F0F0' },
+  sectionTitle: { color: '#1A1A1A', fontSize: 15, fontWeight: '700', marginBottom: 10 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#F8F8F8' },
+  label: { color: '#888', fontSize: 13, flex: 1 },
+  value: { color: '#1A1A1A', fontSize: 14, fontWeight: '500', flex: 2 },
+  input: { flex: 1, backgroundColor: '#F8F6F2', color: '#1A1A1A', padding: 10, borderRadius: 8, fontSize: 14 },
+  btnRow: { flexDirection: 'row', gap: 10, marginTop: 10 },
+  smallBtn: { flex: 1, padding: 10, borderRadius: 8, alignItems: 'center' },
+  smallBtnText: { color: '#FFF', fontWeight: '700', fontSize: 14 },
+  editBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: '#6B21A8', padding: 10, borderRadius: 8, marginTop: 10 },
+  editBtnText: { color: '#FFF', fontWeight: '700', fontSize: 13 },
+  btn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#6B21A8', padding: 14, borderRadius: 12, marginTop: 10 },
+  btnText: { color: '#FFF', fontWeight: '700', fontSize: 15 },
+  outlineBtn: { backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: '#6B21A8' },
+  dangerBtn: { backgroundColor: '#FFF5F5', borderWidth: 1.5, borderColor: '#FFCDD2' },
 });
