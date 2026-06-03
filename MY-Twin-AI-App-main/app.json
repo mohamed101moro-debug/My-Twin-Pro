@@ -38,6 +38,7 @@
       ]
     },
     "plugins": [
+      ["react-native-iap", { "android": { "useFrameworks": "static" } }],
       "expo-router",
       "expo-font",
       "expo-secure-store",
