@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { Tier, useTwinStore } from '../store/useTwinStore';
 import { CheckCircle2, Crown } from 'lucide-react-native';
+import RNIap from 'react-native-iap';
 
 type Plan = {
   id: Tier;
@@ -136,20 +137,14 @@ export default function Subscription() {
     }
     setLoadingId(plan.id);
     try {
-      // RevenueCat integration
-      const Purchases = require('react-native-purchases').default;
-      const offerings = await Purchases.getOfferings();
-      const packages = offerings?.current?.availablePackages ?? [];
-      const pkg = packages.find((p: any) => p.identifier === plan.productId);
-      if (!pkg) {
-        Alert.alert(
-          isAr ? 'غير متوفر' : 'Unavailable',
-          isAr ? 'هذه الباقة غير متاحة حالياً.' : 'This plan is not available.'
-        );
+      if (!plan.productId) {
+        Alert.alert('خطأ', isAr ? 'هذه الباقة غير متاحة حالياً.' : 'This plan is not available.');
         return;
       }
-      const { customerInfo } = await Purchases.purchasePackage(pkg);
-      if (customerInfo) {
+      const purchase = await RNIap.purchaseSubscription({
+        sku: plan.productId,
+      });
+      if (purchase) {
         updateTier(plan.id);
         Alert.alert(
           isAr ? 'تم! 🎉' : 'Done! 🎉',
@@ -158,7 +153,7 @@ export default function Subscription() {
         router.back();
       }
     } catch (err: any) {
-      if (!err?.userCancelled) {
+      if (err?.code !== 'E_USER_CANCELLED') {
         Alert.alert(
           isAr ? 'خطأ' : 'Error',
           err?.message || (isAr ? 'فشلت عملية الشراء.' : 'Purchase failed.')
@@ -172,14 +167,20 @@ export default function Subscription() {
   const handleRestore = async () => {
     setLoadingId('restore');
     try {
-      const Purchases = require('react-native-purchases').default;
-      const customerInfo = await Purchases.restorePurchases();
-      const active = customerInfo?.entitlements?.active ?? {};
-      if (Object.keys(active).length > 0) {
-        Alert.alert(
-          isAr ? 'تم ✅' : 'Done ✅',
-          isAr ? 'تم استعادة اشتراكك!' : 'Subscription restored!'
-        );
+      const purchases = await RNIap.getAvailablePurchases();
+      if (purchases.length > 0) {
+        const activeProduct = purchases.find(p => p.productId && PLANS.find(plan => plan.productId === p.productId));
+        if (activeProduct) {
+          const plan = PLANS.find(p => p.productId === activeProduct.productId);
+          if (plan) {
+            updateTier(plan.id);
+            Alert.alert(
+              isAr ? 'تم ✅' : 'Done ✅',
+              isAr ? 'تم استعادة اشتراكك!' : 'Subscription restored!'
+            );
+            router.back();
+          }
+        }
       } else {
         Alert.alert(
           isAr ? 'تنبيه' : 'Notice',
