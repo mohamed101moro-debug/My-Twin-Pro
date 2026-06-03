@@ -39,6 +39,7 @@
       ]
     },
     "plugins": [
+      "react-native-iap",
     "react-native-iap",
       [
         "expo-build-properties",
