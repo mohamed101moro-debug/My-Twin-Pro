@@ -25,6 +25,7 @@
       }
     },
     "android": {
+    "googleServicesFile": "./google-services.json",
       "package": "com.soulsync.mytwin",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
@@ -38,10 +39,12 @@
       ]
     },
     "plugins": [
+    "react-native-iap",
       [
         "expo-build-properties",
         {
           "android": {
+    "googleServicesFile": "./google-services.json",
             "useFrameworks": "static",
             "enableProguardInReleaseBuilds": true
           }

@@ -1,7 +1,6 @@
 import Purchases, { PurchasesOffering, PurchasesPackage, CustomerInfo } from 'react-native-purchases';
 import { Platform } from 'react-native';
 
-// إعادة تصدير الأنواع لتستخدمها الملفات الأخرى
 export type { PurchasesPackage, CustomerInfo };
 
 const RC_KEY_ANDROID = process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_KEY || '';
@@ -23,17 +22,12 @@ export const getOfferings = async (): Promise<PurchasesOffering | null> => {
   } catch (e) { console.error('getOfferings error:', e); return null; }
 };
 
-const isRevenueCatError = (error: unknown): error is { userCancelled?: boolean; message?: string } => {
-  return typeof error === 'object' && error !== null && ('userCancelled' in error || 'message' in error);
-};
-
 export const purchasePackage = async (pkg: PurchasesPackage) => {
   try {
     const { customerInfo } = await Purchases.purchasePackage(pkg);
     return { success: true, customerInfo, error: null };
   } catch (error: unknown) {
-    if (isRevenueCatError(error) && error.userCancelled) return { success: false, customerInfo: null, error: 'cancelled' };
-    return { success: false, customerInfo: null, error: isRevenueCatError(error) ? error.message || 'unknown_error' : 'unknown_error' };
+    return { success: false, customerInfo: null, error: 'user_cancelled' };
   }
 };
 
@@ -42,17 +36,6 @@ export const restorePurchases = async (): Promise<CustomerInfo | null> => {
     const customerInfo = await Purchases.restorePurchases();
     return customerInfo;
   } catch (error: unknown) {
-    console.error('restorePurchases error:', error);
     return null;
   }
-};
-
-export const getTierFromCustomerInfo = (customerInfo: CustomerInfo): string => {
-  const entitlements = (customerInfo as unknown as { entitlements?: { active?: Record<string, unknown> } }).entitlements?.active || {};
-  if (entitlements['yearly']) return 'yearly';
-  if (entitlements['pro']) return 'pro';
-  if (entitlements['premium']) return 'premium';
-  if (entitlements['plus']) return 'plus';
-  if (entitlements['premium_trial']) return 'premium_trial';
-  return 'free';
 };
