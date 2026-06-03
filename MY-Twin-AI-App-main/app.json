@@ -42,7 +42,7 @@
       "expo-router",
       "expo-font",
       "expo-secure-store",
-      "expo-in-app-purchases",
+  
       [
         "expo-av",
         { "microphonePermission": "يحتاج التطبيق للميكروفون للمحادثات الصوتية." }
