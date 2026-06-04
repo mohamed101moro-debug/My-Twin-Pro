@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { initIAP, getProducts, purchaseSubscription, restorePurchases, TIER_MAP, disconnectIAP } from '../lib/iapService';
 import { Tier, useTwinStore } from '../store/useTwinStore';
 import { CheckCircle2 } from 'lucide-react-native';
-import type { Subscription } from 'react-native-iap';
+// Subscription type removed
 
 type Plan = {
   id: Tier;
@@ -124,7 +124,7 @@ const cb = StyleSheet.create({
 export default function Subscription() {
   const { tier, updateTier, lang } = useTwinStore();
   const [loadingId, setLoadingId] = useState<string | null>(null);
-  const [products, setProducts] = useState<Subscription[]>([]);
+  const [products, setProducts] = useState<any[]>([]);
   const isAr = lang === 'ar';
 
   useEffect(() => {

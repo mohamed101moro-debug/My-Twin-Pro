@@ -12,15 +12,13 @@
       "resizeMode": "contain",
       "backgroundColor": "#FFFFFF"
     },
-    "assetBundlePatterns": [
-      "**/*"
-    ],
+    "assetBundlePatterns": ["**/*"],
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.soulsync.mytwin",
       "infoPlist": {
-        "NSMicrophoneUsageDescription": "يحتاج التطبيق للميكروفون للمحادثات الصوتية.",
-        "NSLocationWhenInUseUsageDescription": "يستخدم الموقع لتحسين تجربة التوأم.",
+        "NSMicrophoneUsageDescription": "يحتاج التطبيق للميكروفون للمحادثات الصوتية المباشرة.",
+        "NSLocationWhenInUseUsageDescription": "يستخدم موقعك لتكييف تجربة التوأم الرقمي بناءً على الطقس والوقت من اليوم.",
         "ITSAppUsesNonExemptEncryption": false
       }
     },
@@ -60,7 +58,6 @@
         "expo-build-properties",
         {
           "android": {
-            "useFrameworks": "static",
             "compileSdkVersion": 35,
             "targetSdkVersion": 35,
             "minSdkVersion": 24
@@ -70,7 +67,7 @@
           }
         }
       ],
-      "./plugins/removeSupportLibPlugin"
+      "./google-play-billing"
     ],
     "extra": {
       "router": {
