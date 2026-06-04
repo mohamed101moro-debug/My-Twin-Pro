@@ -49,10 +49,10 @@
     ],
     "extra": {
       "router": {"origin": false},
-      "eas": {"projectId": "b5e2baa3-6015-40a5-9f31-115298d3b0c9"}
+      "eas": {"projectId": "c234bd89-737f-497c-8bbb-b5d424260b8b"}
     },
     "runtimeVersion": {"policy": "appVersion"},
     "updates": {"url": "https://u.expo.dev/b5e2baa3-6015-40a5-9f31-115298d3b0c9"},
-    "owner": "mohamed101"
+    "owner": "soulsync.ai"
   }
 }
