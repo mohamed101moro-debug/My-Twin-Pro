@@ -70,7 +70,8 @@
           }
         }
       ],
-      "react-native-iap"
+      "react-native-iap",
+      "./plugins/removeSupportLibPlugin"
     ],
     "extra": {
       "router": {
