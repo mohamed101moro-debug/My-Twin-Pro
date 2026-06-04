@@ -12,7 +12,9 @@
       "resizeMode": "contain",
       "backgroundColor": "#FFFFFF"
     },
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.soulsync.mytwin",
@@ -60,7 +62,8 @@
           "android": {
             "compileSdkVersion": 35,
             "targetSdkVersion": 35,
-            "minSdkVersion": 24
+            "minSdkVersion": 24,
+            "kotlinVersion": "2.0.0"
           },
           "ios": {
             "deploymentTarget": "16.4"
