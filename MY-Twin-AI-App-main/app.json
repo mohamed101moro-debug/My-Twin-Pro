@@ -38,7 +38,6 @@
       ]
     },
     "plugins": [
-      ["react-native-iap", { "android": { "useFrameworks": "static" } }],
       "expo-router",
       "expo-font",
       "expo-secure-store",
@@ -50,8 +49,7 @@
         "expo-notifications",
         {
           "icon": "./assets/notification-icon.png",
-          "color": "#6B21A8",
-          "sounds": []
+          "color": "#6B21A8"
         }
       ],
       [
@@ -59,13 +57,12 @@
         {
           "android": {
             "useFrameworks": "static",
-            "enableProguardInReleaseBuilds": true,
-            "compileSdkVersion": 34,
-            "targetSdkVersion": 34,
+            "compileSdkVersion": 35,
+            "targetSdkVersion": 35,
             "minSdkVersion": 24
           },
           "ios": {
-            "deploymentTarget": "15.0"
+            "deploymentTarget": "15.1"
           }
         }
       ]
