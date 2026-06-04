@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",
-    "@react-native-async-storage/async-storage": "2.2.0",
+    "@react-native-async-storage/async-storage": "^1.23.1",
     "@supabase/supabase-js": "^2.46.1",
     "@types/react": "~19.2.14",
     "axios": "^1.7.7",
@@ -31,7 +31,7 @@
     "expo-updates": "^56.0.17",
     "expo-web-browser": "~56.0.5",
     "lucide-react-native": "^0.469.0",
-    "posthog-react-native": "^4.46.11",
+    "posthog-react-native": "^3.5.0",
     "react": "19.1.0",
     "react-native": "0.78.0",
     "react-native-get-random-values": "^1.11.0",
