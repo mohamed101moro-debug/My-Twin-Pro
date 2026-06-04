@@ -14,7 +14,7 @@
       "channel": "preview",
       "android": {
         "buildType": "apk",
-        "image": "expo-sdk-51"
+        "image": "ubuntu-22.04-jdk-17-ndk-r26b"
       }
     },
     "production": {
@@ -22,7 +22,7 @@
       "autoIncrement": true,
       "android": {
         "buildType": "app-bundle",
-        "image": "expo-sdk-51"
+        "image": "ubuntu-22.04-jdk-17-ndk-r26b"
       }
     }
   },
