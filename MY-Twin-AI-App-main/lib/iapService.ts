@@ -22,17 +22,24 @@ export const getProducts = async () => {
   return [];
 };
 
+// ✅ التصحيح هنا: إزالة التحقق من responseCode لأن الدالة ترجع void
 export const purchaseSubscription = async (productId: string): Promise<boolean> => {
   if (Platform.OS !== 'android' && Platform.OS !== 'ios') return false;
   try {
-    const result = await InAppPurchases.purchaseItemAsync(productId);
-    return result.responseCode === InAppPurchases.IAPResponseCode.OK;
-  } catch (error) { console.error('Purchase Failed:', error); return false; }
+    await InAppPurchases.purchaseItemAsync(productId);
+    // إذا لم يحدث خطأ (catch)، نعتبر العملية ناجحة مبدئياً
+    // الملاحظة: التحقق الفعلي يتم عبر setPurchaseListener
+    return true; 
+  } catch (error) { 
+    console.error('Purchase Failed:', error); 
+    return false; 
+  }
 };
 
 export const restorePurchases = async () => {
   if (Platform.OS !== 'android' && Platform.OS !== 'ios') return [];
-  try {    const { responseCode, results } = await InAppPurchases.getPurchaseHistoryAsync();
+  try {
+    const { responseCode, results } = await InAppPurchases.getPurchaseHistoryAsync();
     if (responseCode === InAppPurchases.IAPResponseCode.OK) return results || [];
   } catch (e) { console.error('Restore Error:', e); }
   return [];
